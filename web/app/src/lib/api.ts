@@ -7,6 +7,11 @@
 
 export const API_BASE: string = import.meta.env.VITE_API_BASE ?? ""
 
+/** 抛出来的任何东西转成可展示的文字 */
+export function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e)
+}
+
 /** 读取接口的 JSON 错误信息，读不出来时用状态码兜底 */
 export async function readError(res: Response): Promise<string> {
   try {

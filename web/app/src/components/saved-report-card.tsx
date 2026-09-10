@@ -10,7 +10,7 @@ import type { Chart, PillarKind } from "@kismet/core"
 import { ELEMENT_TEXT, toPaipanInput } from "@/lib/bazi"
 import { locationNameOf } from "@/lib/birth-info"
 import { trackGlow } from "@/lib/glow"
-import { formatSavedAt, type SavedReport } from "@/lib/reports"
+import { excerptOf, formatSavedAt, type SavedReport } from "@/lib/reports"
 
 const PILLARS: ReadonlyArray<[PillarKind, string]> = [
   ["year", "年"],
@@ -18,15 +18,6 @@ const PILLARS: ReadonlyArray<[PillarKind, string]> = [
   ["day", "日"],
   ["hour", "时"],
 ]
-
-/** 解读正文的第一段，去掉 Markdown 标记，卡片上做摘要 */
-function excerptOf(markdown: string): string | undefined {
-  return markdown
-    .split("\n")
-    .map((line) => line.trim())
-    .find((line) => line && !line.startsWith("#"))
-    ?.replace(/[*_`>]/g, "")
-}
 
 /** 按保存的表单值重新排盘，输入不合法时卡片不显示四柱 */
 function chartOf(report: SavedReport): Chart | undefined {

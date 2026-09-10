@@ -11,6 +11,8 @@ type Status = "idle" | "thinking" | "streaming" | "done" | "error"
 
 interface AnalysisPanelProps {
   chart: Chart
+  /** 报告 id，解读结果以此存到服务端 */
+  reportId: string
   /** 已收藏的解读正文，有则直接展示 */
   initialText?: string
   /** 一次解读结束（含手动停止）且有正文时回调 */
@@ -24,6 +26,7 @@ interface AnalysisPanelProps {
  */
 export function AnalysisPanel({
   chart,
+  reportId,
   initialText,
   onComplete,
 }: AnalysisPanelProps) {
@@ -49,6 +52,7 @@ export function AnalysisPanel({
     try {
       await streamAnalysis(
         prompt,
+        { reportId, input: chart.input, options: chart.options },
         (delta) => {
           full += delta
           setStatus("streaming")

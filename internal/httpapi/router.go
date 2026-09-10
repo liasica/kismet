@@ -11,18 +11,32 @@ import (
 
 	"github.com/liasica/kismet/internal/bazi"
 	"github.com/liasica/kismet/internal/region"
+	"github.com/liasica/kismet/internal/report"
 )
 
-// Server 接口层，持有区划数据、DeepSeek 配置与前端构建产物
+// Server 接口层，持有区划数据、DeepSeek 配置、报告存储与前端构建产物
 type Server struct {
 	store    *region.Store
 	deepSeek DeepSeekConfig
+	reports  *report.Store
+	unlocks  *unlockLimiter
 	web      fs.FS
 }
 
 // NewServer 构造接口层，web 是前端构建产物的根目录
-func NewServer(store *region.Store, deepSeek DeepSeekConfig, web fs.FS) *Server {
-	return &Server{store: store, deepSeek: deepSeek, web: web}
+func NewServer(
+	store *region.Store,
+	deepSeek DeepSeekConfig,
+	reports *report.Store,
+	web fs.FS,
+) *Server {
+	return &Server{
+		store:    store,
+		deepSeek: deepSeek,
+		reports:  reports,
+		unlocks:  newUnlockLimiter(),
+		web:      web,
+	}
 }
 
 // writeJSON 输出 JSON
@@ -64,7 +78,7 @@ func cors(next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
 		}
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
 		if r.Method == http.MethodOptions {
@@ -86,6 +100,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/options", s.handleOptions)
 	mux.HandleFunc("POST /api/paipan", s.handlePaipan)
 	mux.HandleFunc("POST /api/analyze", s.handleAnalyze)
+	mux.HandleFunc("GET /api/reports/{id}/share", s.handleGetShare)
+	mux.HandleFunc("POST /api/reports/{id}/share", s.handleCreateShare)
+	mux.HandleFunc("DELETE /api/reports/{id}/share", s.handleDeleteShare)
+	mux.HandleFunc("GET /api/shares/{hash}", s.handleShared)
+	mux.HandleFunc("POST /api/shares/{hash}/unlock", s.handleUnlock)
 	mux.HandleFunc("GET /api/regions/provinces", s.handleProvinces)
 	mux.HandleFunc("GET /api/regions/search", s.handleSearch)
 	mux.HandleFunc("GET /api/regions/{code}", s.handleRegion)

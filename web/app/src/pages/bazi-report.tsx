@@ -9,24 +9,31 @@ import { Link, Navigate } from "react-router"
 import { AnalysisPanel } from "@/components/analysis-panel"
 import { useBaziSession } from "@/components/bazi-session"
 import { ChartView } from "@/components/chart-view"
+import { ShareDialog } from "@/components/share-dialog"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { paipan } from "@kismet/core"
 import type { Chart } from "@kismet/core"
 import { toPaipanInput } from "@/lib/bazi"
-import { deleteReport, saveReport, useReports } from "@/lib/reports"
+import {
+  deleteReport,
+  isReportId,
+  saveReport,
+  useReports,
+} from "@/lib/reports"
 
 /**
  * 报告页：排盘结果与命理解读，表单值来自会话存储
  *
- * 头部的收藏开关把整份报告存进收藏；解读结束后自动收藏并更新正文
+ * 头部的收藏开关把整份报告存进收藏，解读结束后自动收藏并更新正文；
+ * 分享按钮生成链接或海报，解读结果本身由服务端在解读时保存
  */
 export function BaziReportPage() {
   const [session] = useBaziSession()
-  const reportId = session.reportId || String(session.submittedAt)
+  const reportId = session.reportId
   const saved = useReports().find((r) => r.id === reportId)
-  // 面板里最新的解读正文，点收藏时随报告一起存
-  const latest = React.useRef(saved?.analysis ?? "")
+  // 面板里最新的解读正文，点收藏时随报告一起存，海报上做摘要
+  const [analysis, setAnalysis] = React.useState(saved?.analysis ?? "")
 
   const result = React.useMemo<
     { chart: Chart; error?: undefined } | { chart?: undefined; error: string }
@@ -40,23 +47,25 @@ export function BaziReportPage() {
     }
   }, [session.birth, session.options])
 
-  if (!session.submittedAt) return <Navigate to="/bazi" replace />
+  if (!session.submittedAt || !isReportId(reportId)) {
+    return <Navigate to="/bazi" replace />
+  }
 
-  const save = (analysis: string) =>
+  const save = (text: string) =>
     saveReport({
       id: reportId,
       savedAt: Date.now(),
       birth: session.birth,
       options: session.options,
-      analysis,
+      analysis: text,
     })
 
   const complete = (text: string) => {
-    latest.current = text
+    setAnalysis(text)
     save(text)
   }
 
-  const toggle = () => (saved ? deleteReport(reportId) : save(latest.current))
+  const toggle = () => (saved ? deleteReport(reportId) : save(analysis))
 
   return (
     <section className="flex flex-col gap-10">
@@ -81,6 +90,13 @@ export function BaziReportPage() {
             )}
             {saved ? "已收藏" : "收藏"}
           </Button>
+          {result.chart && (
+            <ShareDialog
+              reportId={reportId}
+              chart={result.chart}
+              analysis={analysis}
+            />
+          )}
           <Link
             to="/bazi"
             className={buttonVariants({ variant: "outline", size: "sm" })}
@@ -98,6 +114,7 @@ export function BaziReportPage() {
           <AnalysisPanel
             key={session.submittedAt}
             chart={result.chart}
+            reportId={reportId}
             initialText={saved?.analysis}
             onComplete={complete}
           />

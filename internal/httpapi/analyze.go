@@ -12,11 +12,14 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/liasica/kismet/internal/bazi"
 )
 
 // 命理解读经 DeepSeek 完成，这一层只做转发：把提示词包成 chat completions 请求，
 // 再把上游的 SSE 逐行写回客户端，客户端按 OpenAI 兼容格式解析；
-// 思考模式下流里先出 reasoning_content 再出 content，思考过程同时打到控制台
+// 思考模式下流里先出 reasoning_content 再出 content，思考过程同时打到控制台。
+// 请求带 reportId 时，排盘输入在解读开始前存成报告，解读正文在流结束后写回同一份报告
 const (
 	// analyzeRequestBytes 请求体上限，提示词含完整流年也只有几十 KB
 	analyzeRequestBytes = 256 << 10
@@ -70,6 +73,19 @@ func DeepSeekConfigFromEnv() DeepSeekConfig {
 // analyzeRequest 解读请求体，提示词由客户端拼好
 type analyzeRequest struct {
 	Prompt string `json:"prompt"`
+	// ReportID 报告 id，带上时输入与解读结果存成报告，此时 input 必填；为空则只转发
+	ReportID string             `json:"reportId"`
+	Input    *bazi.Input        `json:"input"`
+	Options  *bazi.OptionsPatch `json:"options"`
+}
+
+// analyzeCommand 解析后的解读请求
+type analyzeCommand struct {
+	Prompt string
+	// ReportID 为空则不保存
+	ReportID string
+	Input    bazi.Input
+	Options  bazi.Options
 }
 
 // chatMessage OpenAI 兼容的对话消息
@@ -118,47 +134,70 @@ func (s *Server) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 	if !s.deepSeek.Enabled() {
 		writeError(w, apiError{
 			status:  http.StatusServiceUnavailable,
-			message: "服务端未配置 DEEPSEEK_API_KEY，解读接口不可用",
+			message: "服务端未配置解读服务，解读接口不可用",
 		})
 		return
 	}
 
-	prompt, err := parseAnalyzeRequest(r)
+	cmd, err := parseAnalyzeRequest(r)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
 
-	resp, err := s.requestDeepSeek(r.Context(), prompt)
+	// 输入先存成报告，解读中途断开也留得下已生成的正文
+	if cmd.ReportID != "" {
+		if err = s.reports.Upsert(cmd.ReportID, cmd.Input, cmd.Options); err != nil {
+			writeError(w, err)
+			return
+		}
+	}
+
+	resp, err := s.requestDeepSeek(r.Context(), cmd.Prompt)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	relayStream(w, resp.Body)
+	content := relayStream(w, resp.Body)
+	if cmd.ReportID == "" || content == "" {
+		return
+	}
+	if err = s.reports.SaveAnalysis(cmd.ReportID, s.deepSeek.Model, content); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "保存报告 %s 的解读失败 %v\n", cmd.ReportID, err)
+	}
 }
 
-// parseAnalyzeRequest 解析并校验解读请求
-func parseAnalyzeRequest(r *http.Request) (string, error) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, analyzeRequestBytes))
-	if err != nil {
-		return "", badRequest("读取请求体失败")
-	}
-
+// parseAnalyzeRequest 解析并校验解读请求，带 reportId 时连排盘输入一起校验
+func parseAnalyzeRequest(r *http.Request) (cmd analyzeCommand, err error) {
 	var req analyzeRequest
-	if err = json.Unmarshal(body, &req); err != nil {
-		return "", badRequest("请求体不是合法的 JSON")
+	if err = decodeJSON(r, analyzeRequestBytes, &req); err != nil {
+		return
 	}
 
-	prompt := strings.TrimSpace(req.Prompt)
-	if prompt == "" {
-		return "", badRequest("prompt 缺失")
+	cmd.Prompt = strings.TrimSpace(req.Prompt)
+	if cmd.Prompt == "" {
+		err = badRequest("prompt 缺失")
+		return
 	}
-	return prompt, nil
+	if req.ReportID == "" {
+		return
+	}
+
+	if cmd.ReportID, err = requireReportID(req.ReportID); err != nil {
+		return
+	}
+	if req.Input == nil {
+		err = badRequest("带 reportId 时 input 缺失")
+		return
+	}
+	cmd.Input = *req.Input
+	cmd.Options, err = validateChart(cmd.Input, req.Options)
+	return
 }
 
-// requestDeepSeek 发起流式请求，非 200 的上游响应转成 502 并带上对方的错误信息
+// requestDeepSeek 发起流式请求，连不上或上游非 200 都转成 502，上游的错误细节只记到控制台
 func (s *Server) requestDeepSeek(ctx context.Context, prompt string) (*http.Response, error) {
 	payload, err := json.Marshal(chatRequest{
 		Model:     s.deepSeek.Model,
@@ -185,18 +224,17 @@ func (s *Server) requestDeepSeek(ctx context.Context, prompt string) (*http.Resp
 
 	resp, err := analyzeClient.Do(req)
 	if err != nil {
-		return nil, apiError{
-			status:  http.StatusBadGateway,
-			message: "连接 DeepSeek 失败：" + err.Error(),
-		}
+		_, _ = fmt.Fprintf(os.Stderr, "连接解读上游失败 %v\n", err)
+		return nil, apiError{status: http.StatusBadGateway, message: "连接解读服务失败"}
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		message := readUpstreamError(resp.Body)
 		_ = resp.Body.Close()
+		_, _ = fmt.Fprintf(os.Stderr, "解读上游返回 %d %s\n", resp.StatusCode, message)
 		return nil, apiError{
 			status:  http.StatusBadGateway,
-			message: fmt.Sprintf("DeepSeek 返回 %d：%s", resp.StatusCode, message),
+			message: fmt.Sprintf("解读服务返回 %d", resp.StatusCode),
 		}
 	}
 	return resp, nil
@@ -221,8 +259,10 @@ func readUpstreamError(body io.Reader) string {
 	return text
 }
 
-// relayStream 把上游的 SSE 逐行写回并刷出，思考过程打到控制台；客户端断开时上游请求随上下文取消
-func relayStream(w http.ResponseWriter, body io.Reader) {
+// relayStream 把上游的 SSE 逐行写回并刷出，返回拼好的解读正文
+//
+// 思考过程打到控制台；客户端断开时上游请求随上下文取消，断开前收到的正文照样返回
+func relayStream(w http.ResponseWriter, body io.Reader) string {
 	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Accel-Buffering", "no")
@@ -232,15 +272,15 @@ func relayStream(w http.ResponseWriter, body io.Reader) {
 	w.WriteHeader(http.StatusOK)
 
 	reader := bufio.NewReader(body)
-	logger := reasoningLogger{out: os.Stdout}
-	defer logger.Flush()
+	monitor := streamMonitor{out: os.Stdout}
+	defer monitor.Flush()
 
 	for {
 		line, err := reader.ReadBytes('\n')
 		if len(line) > 0 {
-			logger.Feed(line)
+			monitor.Feed(line)
 			if _, writeErr := w.Write(line); writeErr != nil {
-				return
+				return monitor.Content()
 			}
 			_ = controller.Flush()
 		}
@@ -248,19 +288,21 @@ func relayStream(w http.ResponseWriter, body io.Reader) {
 			if !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
 				_, _ = fmt.Fprintf(os.Stderr, "读取 DeepSeek 流中断 %v\n", err)
 			}
-			return
+			return monitor.Content()
 		}
 	}
 }
 
-// reasoningLogger 把流里零散的思考片段拼成整行再输出，流结束时输出结束原因与用量
-type reasoningLogger struct {
-	out  io.Writer
-	line strings.Builder
+// streamMonitor 跟着流看片段：思考片段拼成整行输出到控制台，正文片段拼成完整解读；
+// 流结束时输出结束原因与用量
+type streamMonitor struct {
+	out     io.Writer
+	line    strings.Builder
+	content strings.Builder
 }
 
-// Feed 解析一行 SSE：思考片段按换行切开输出，正文一出现就把没换行的残余冲出
-func (l *reasoningLogger) Feed(raw []byte) {
+// Feed 解析一行 SSE：思考片段按换行切开输出，正文一出现就把没换行的残余冲出并攒起正文
+func (m *streamMonitor) Feed(raw []byte) {
 	payload, ok := bytes.CutPrefix(bytes.TrimSpace(raw), []byte("data:"))
 	if !ok {
 		return
@@ -277,19 +319,25 @@ func (l *reasoningLogger) Feed(raw []byte) {
 
 	choice := chunk.Choices[0]
 	if choice.Delta.ReasoningContent != "" {
-		l.append(choice.Delta.ReasoningContent)
+		m.append(choice.Delta.ReasoningContent)
 	}
 	if choice.Delta.Content != "" {
-		l.Flush()
+		m.Flush()
+		m.content.WriteString(choice.Delta.Content)
 	}
 	if choice.FinishReason != "" {
-		l.Flush()
-		l.finish(choice.FinishReason, chunk.Usage)
+		m.Flush()
+		m.finish(choice.FinishReason, chunk.Usage)
 	}
 }
 
+// Content 到目前为止收到的解读正文
+func (m *streamMonitor) Content() string {
+	return m.content.String()
+}
+
 // finish 输出结束原因与用量，被 max_tokens 截断时点明
-func (l *reasoningLogger) finish(reason string, usage *streamUsage) {
+func (m *streamMonitor) finish(reason string, usage *streamUsage) {
 	var b strings.Builder
 	_, _ = fmt.Fprintf(&b, "[解读] 结束 finish_reason=%s", reason)
 	if usage != nil {
@@ -299,26 +347,26 @@ func (l *reasoningLogger) finish(reason string, usage *streamUsage) {
 	if reason == "length" {
 		b.WriteString("，生成达到 max_tokens 上限被截断")
 	}
-	_, _ = fmt.Fprintln(l.out, b.String())
+	_, _ = fmt.Fprintln(m.out, b.String())
 }
 
 // append 追加思考片段，每遇到一个换行就输出一行
-func (l *reasoningLogger) append(text string) {
+func (m *streamMonitor) append(text string) {
 	for {
 		before, after, found := strings.Cut(text, "\n")
-		l.line.WriteString(before)
+		m.line.WriteString(before)
 		if !found {
 			return
 		}
-		l.Flush()
+		m.Flush()
 		text = after
 	}
 }
 
 // Flush 输出攒下的思考内容，空行跳过
-func (l *reasoningLogger) Flush() {
-	if l.line.Len() > 0 {
-		_, _ = fmt.Fprintf(l.out, "[思考] %s\n", l.line.String())
+func (m *streamMonitor) Flush() {
+	if m.line.Len() > 0 {
+		_, _ = fmt.Fprintf(m.out, "[思考] %s\n", m.line.String())
 	}
-	l.line.Reset()
+	m.line.Reset()
 }

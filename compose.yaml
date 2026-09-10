@@ -8,8 +8,13 @@ services:
     env_file: .env
     ports:
       - '127.0.0.1:36579:36579'
+    volumes:
+      - kismet-data:/data
     logging:
       driver: json-file
       options:
         max-size: 10m
         max-file: '3'
+
+volumes:
+  kismet-data:

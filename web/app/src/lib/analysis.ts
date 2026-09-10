@@ -3,9 +3,16 @@
  */
 
 import { toText } from "@kismet/core"
-import type { Chart } from "@kismet/core"
+import type { Chart, PaipanInput, PaipanOptions } from "@kismet/core"
 
 import { API_BASE, readError } from "@/lib/api"
+
+/** 随解读请求存到服务端的报告：id、排盘输入与选项，解读结束后正文写回同一份 */
+export interface AnalysisRecord {
+  reportId: string
+  input: PaipanInput
+  options: PaipanOptions
+}
 
 /** 把「今天」写进提示词，模型据此判断「这两年」指哪两年 */
 function todayText(): string {
@@ -51,11 +58,13 @@ interface StreamChunk {
 /**
  * 请求解读并逐段回调正文
  *
- * 服务端逐行转发 DeepSeek 的 SSE，这里解析 `data:` 载荷，遇到 `[DONE]` 结束。
+ * 服务端先把 `record` 存成报告，再逐行转发 DeepSeek 的 SSE，流结束后把正文写回报告；
+ * 这里解析 `data:` 载荷，遇到 `[DONE]` 结束。
  * 思考模式下正文之前先有一段 `reasoning_content`，只用来通知调用方模型在思考
  */
 export async function streamAnalysis(
   prompt: string,
+  record: AnalysisRecord,
   onDelta: (text: string) => void,
   signal: AbortSignal,
   onReasoning?: () => void
@@ -65,7 +74,7 @@ export async function streamAnalysis(
     res = await fetch(`${API_BASE}/api/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt, ...record }),
       signal,
     })
   } catch (e) {

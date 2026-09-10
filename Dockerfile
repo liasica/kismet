@@ -26,5 +26,8 @@ FROM alpine:3
 # 调用 DeepSeek 需要根证书
 RUN apk add --no-cache ca-certificates
 COPY --from=build /out/kismet /usr/local/bin/kismet
+# 报告与分享数据落在 /data，挂成卷才能跨容器保留
+ENV DB_PATH=/data/kismet.db
+VOLUME /data
 EXPOSE 36579
 ENTRYPOINT ["kismet"]

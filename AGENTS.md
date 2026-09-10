@@ -8,9 +8,10 @@
 
 | 项 | 选型 | 说明 |
 | --- | --- | --- |
-| 服务 | Go 1.27，标准库 `net/http` | 静态资源、排盘接口、DeepSeek 转发 |
+| 服务 | Go 1.27，标准库 `net/http` | 静态资源、排盘接口、DeepSeek 转发、报告与分享 |
+| 存储 | bbolt | 单文件键值库，存解读报告与分享设置，路径由 `DB_PATH` 指定 |
 | 构建 | Vite 8 + React 19 + TypeScript 6 | SPA，无 SSR |
-| 路由 | react-router 8 | 声明式 `BrowserRouter`，页面在 `web/app/src/pages/`：`/` 首页卡片、`/bazi` 表单、`/bazi/report` 排盘与解读、`/saved` 收藏 |
+| 路由 | react-router 8 | 声明式 `BrowserRouter`，页面在 `web/app/src/pages/`：`/` 首页卡片、`/bazi` 表单、`/bazi/report` 排盘与解读、`/saved` 收藏、`/s/:hash` 分享页 |
 | 样式 | Tailwind CSS v4 | CSS-first，无 `tailwind.config`，主题变量集中在 `web/app/src/index.css` |
 | 组件 | shadcn/ui，style `base-sera` | 配置见 `web/app/components.json` |
 | 组件基座 | `@base-ui/react` | 不是 Radix |
@@ -26,7 +27,8 @@
 main.go            入口，go:embed 内嵌 data/region 与 web/app/dist
 internal/bazi/     八字排盘的 Go 实现
 internal/region/   行政区划查询，从 fs.FS 读数据
-internal/httpapi/  HTTP 接口：排盘、区划、DeepSeek 解读转发、SPA 静态资源
+internal/report/   解读报告的持久化与分享：bbolt 存储、分享哈希、密码派生
+internal/httpapi/  HTTP 接口：排盘、区划、DeepSeek 解读转发、报告分享、SPA 静态资源
 data/region/       行政区划 JSON，Go 与 TypeScript 读同一份
 data/fixtures/     黄金基准 charts.json，约束两份排盘实现一致
 web/               前端 pnpm 工作区
@@ -64,6 +66,7 @@ make fixtures   # 重新生成黄金基准并用 Go 侧比对
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
 | `PORT` | `36579` | 监听端口 |
+| `DB_PATH` | `kismet.db` | 报告与分享的数据文件，镜像里设为 `/data/kismet.db` 并挂成卷 |
 | `DEEPSEEK_API_KEY` | 空 | 未设置时解读接口返回 503，其余功能不受影响 |
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容的接口地址 |
 | `DEEPSEEK_MODEL` | `deepseek-v4-flash` | 模型名 |
@@ -74,13 +77,22 @@ make fixtures   # 重新生成黄金基准并用 Go 侧比对
 
 推 `master` 触发 `.github/workflows/deploy.yml`：`Dockerfile` 多阶段构建，Node 阶段出前端产物，Go 阶段把它与区划数据 embed 进单二进制，最终镜像基于 alpine，推到 `ghcr.io/liasica/kismet`，再 ssh 到服务器 `docker compose pull && docker compose up -d`。
 
-服务器的部署目录放 `compose.yaml` 与 `.env`，两者都由工作流写入。`.env` 里的 `IMAGE_TAG` 是本次部署的 commit sha，回滚就是把它改回旧 sha 再 `docker compose up -d`。容器只监听 `127.0.0.1:36579`，TLS 与对外访问由宿主机的 nginx 反代承担。
+服务器的部署目录放 `compose.yaml` 与 `.env`，两者都由工作流写入。`.env` 里的 `IMAGE_TAG` 是本次部署的 commit sha，回滚就是把它改回旧 sha 再 `docker compose up -d`。容器只监听 `127.0.0.1:36579`，TLS 与对外访问由宿主机的 nginx 反代承担。报告数据在命名卷 `kismet-data`（容器内 `/data`），换镜像不丢。
 
 主机、账号、部署路径、部署私钥与 DeepSeek 密钥都在仓库 secrets：`SSH_HOST`、`SSH_USER`、`DEPLOY_PATH`、`SSH_KEY`、`SSH_KNOWN_HOSTS`、`DEEPSEEK_API_KEY`；`DEEPSEEK_BASE_URL` 与 `DEEPSEEK_MODEL` 是仓库 variables。
 
 ## 命理解读
 
-`POST /api/analyze` 收 `{"prompt": string}`，服务端加上模型名转发给 DeepSeek 的 `chat/completions`，`stream: true`，把上游 SSE 逐行写回；思考模式下流里先出 `reasoning_content` 再出 `content`，服务端把思考过程按行打到控制台，前端只渲染正文，思考阶段显示「思考中」。提示词由前端 `web/app/src/lib/analysis.ts` 拼装，把姓名、出生时刻、出生地、性别与 `toText(chart, { years: true })` 的文字排盘填进固定模板，界面上可以展开查看。
+`POST /api/analyze` 收 `{"prompt": string, "reportId", "input", "options"}`，服务端加上模型名转发给 DeepSeek 的 `chat/completions`，`stream: true`，把上游 SSE 逐行写回；思考模式下流里先出 `reasoning_content` 再出 `content`，服务端把思考过程按行打到控制台，前端只渲染正文，思考阶段显示「思考中」。提示词由前端 `web/app/src/lib/analysis.ts` 拼装，把姓名、出生时刻、出生地、性别与 `toText(chart, { years: true })` 的文字排盘填进固定模板，界面上可以展开查看。
+
+带 `reportId` 时服务端在转发前把排盘输入与选项存成报告，流结束（含客户端中途断开）后把已生成的正文写回同一份，`reportId` 由前端在提交表单时生成（128 位随机数的 32 位十六进制），持有 id 即可管理这份报告的分享。
+
+## 分享
+
+- 链接：`POST /api/reports/{id}/share` 收 `{"password", "input", "options", "analysis"}` 开启分享或改密码，返回 `{"hash", "locked"}`；`GET` 查状态，`DELETE` 取消。报告尚未解读时随请求带上的 `input` 与 `options` 会先存成报告，`analysis` 非空时以它为准写入正文，前端每次创建或改密码都带上本地最新的解读
+- 查看：`GET /api/shares/{hash}` 未设密码直接返回 `{"locked": false, "report": {input, options, analysis, createdAt, updatedAt}}`，设了密码只返回 `{"locked": true}`，再 `POST /api/shares/{hash}/unlock` 收 `{"password"}` 换正文；同一分享连续输错 5 次密码冷却 30 秒
+- 分享哈希是 8 字节随机数的 base64url 编码；密码只存 PBKDF2-SHA256 的盐与派生结果，路径不合格式一律按 404 处理
+- 前端 `/s/:hash` 取到 `input` 与 `options` 后在本地重新排盘，接口层不算盘；报告页头部的「分享」对话框分「链接」「图片」两页，图片由 `web/app/src/lib/poster.ts` 用 Canvas 画成长图：命盘、五行与完整解读正文，正文按自带的简易 Markdown 排版（标题、段落、列表、引用、表格、粗体），颜色取当前主题的 CSS 变量，有分享链接时附二维码（`uqr`）；先空跑一遍量出总高度，画布总像素压在 1600 万以内，超长解读自动降低导出倍率
 
 ## 开发约定
 

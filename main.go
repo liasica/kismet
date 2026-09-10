@@ -16,6 +16,7 @@ import (
 
 	"github.com/liasica/kismet/internal/httpapi"
 	"github.com/liasica/kismet/internal/region"
+	"github.com/liasica/kismet/internal/report"
 )
 
 // 读写超时，排盘是纯计算几毫秒就够；解读接口流式输出时间长，自行延长写超时
@@ -45,24 +46,31 @@ func main() {
 		fail("定位前端产物失败 %v", err)
 	}
 
+	reports, err := report.Open(dbPath())
+	if err != nil {
+		fail("打开数据文件失败 %v", err)
+	}
+
 	deepSeek := httpapi.DeepSeekConfigFromEnv()
 	addr := ":" + port()
 	server := &http.Server{
 		Addr:         addr,
-		Handler:      httpapi.NewServer(store, deepSeek, webFS).Handler(),
+		Handler:      httpapi.NewServer(store, deepSeek, reports, webFS).Handler(),
 		ReadTimeout:  readTimeout,
 		WriteTimeout: writeTimeout,
 	}
 
 	_, _ = fmt.Fprintf(os.Stdout, "遇见 http://localhost%s\n", addr)
+	_, _ = fmt.Fprintf(os.Stdout, "数据文件 %s\n", dbPath())
 	if deepSeek.Enabled() {
 		_, _ = fmt.Fprintf(os.Stdout, "命理解读 %s %s\n", deepSeek.BaseURL, deepSeek.Model)
 	} else {
 		_, _ = fmt.Fprintln(os.Stdout, "命理解读 未配置 DEEPSEEK_API_KEY，接口返回 503")
 	}
-	if err = server.ListenAndServe(); err != nil {
-		fail("服务退出 %v", err)
-	}
+
+	err = server.ListenAndServe()
+	_ = reports.Close()
+	fail("服务退出 %v", err)
 }
 
 // fail 打印错误并退出
@@ -77,4 +85,12 @@ func port() string {
 		return p
 	}
 	return "36579"
+}
+
+// dbPath 报告数据文件的路径，取环境变量 DB_PATH
+func dbPath() string {
+	if p := os.Getenv("DB_PATH"); p != "" {
+		return p
+	}
+	return "kismet.db"
 }

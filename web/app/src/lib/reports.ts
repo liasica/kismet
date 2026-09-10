@@ -36,11 +36,25 @@ function read(): SavedReport[] {
   cache = []
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) cache = (JSON.parse(raw) as SavedReport[]).sort(byNewest)
+    if (raw) cache = normalize((JSON.parse(raw) as SavedReport[]).sort(byNewest))
   } catch {
     // 存储不可用或内容损坏，视为没有报告
   }
   return cache
+}
+
+/** id 不合服务端格式的条目换成新 id 并写回，服务端只认 32 位十六进制 */
+function normalize(reports: SavedReport[]): SavedReport[] {
+  if (reports.every((r) => isReportId(r.id))) return reports
+  const fixed = reports.map((r) =>
+    isReportId(r.id) ? r : { ...r, id: newReportId() }
+  )
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(fixed))
+  } catch {
+    // 存储不可用时只保留在内存里
+  }
+  return fixed
 }
 
 function write(reports: SavedReport[]) {
@@ -60,9 +74,14 @@ function subscribe(listener: () => void) {
   }
 }
 
-/** 报告 id，时间戳加随机串，不依赖安全上下文 */
+/** 报告 id：128 位随机数的十六进制，服务端按同样的格式校验 */
 export function newReportId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")
+}
+
+export function isReportId(id: string): boolean {
+  return /^[0-9a-f]{32}$/.test(id)
 }
 
 /** 订阅全部报告，保存或删除后自动刷新 */
@@ -78,6 +97,15 @@ export function saveReport(report: SavedReport) {
 
 export function deleteReport(id: string) {
   write(read().filter((r) => r.id !== id))
+}
+
+/** 解读正文的第一段，去掉 Markdown 标记，用作摘要 */
+export function excerptOf(markdown: string): string | undefined {
+  return markdown
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line && !line.startsWith("#"))
+    ?.replace(/[*_`>]/g, "")
 }
 
 /** 保存时间的显示格式，如 `2026-09-10 14:22` */

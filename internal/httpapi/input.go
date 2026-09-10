@@ -64,15 +64,86 @@ type paipanRequest struct {
 	Options bazi.OptionsPatch `json:"options"`
 }
 
-// requireInt 取一个必填整数并校验范围
-func requireInt(value *int, field string, min, max int) (int, error) {
+// decodeJSON 读请求体并解析 JSON，limit 是允许的最大字节数
+func decodeJSON(r *http.Request, limit int64, value any) error {
+	body, err := io.ReadAll(io.LimitReader(r.Body, limit))
+	if err != nil {
+		return badRequest("读取请求体失败")
+	}
+	if err = json.Unmarshal(body, value); err != nil {
+		return badRequest("请求体不是合法的 JSON")
+	}
+	return nil
+}
+
+// requireInt 取一个必填整数
+func requireInt(value *int, field string) (int, error) {
 	if value == nil {
 		return 0, badRequest("%s 缺失", field)
 	}
-	if *value < min || *value > max {
-		return 0, badRequest("%s 应在 %d 到 %d 之间，收到 %d", field, min, max, *value)
-	}
 	return *value, nil
+}
+
+// checkInput 校验排盘输入：各时间分量的范围、日期是否真实存在、性别与经纬度
+func checkInput(input bazi.Input) error {
+	ranges := []struct {
+		value    int
+		field    string
+		min, max int
+	}{
+		{input.Year, "year", 1, 9999},
+		{input.Month, "month", 1, 12},
+		{input.Day, "day", 1, 31},
+		{input.Hour, "hour", 0, 23},
+		{input.Minute, "minute", 0, 59},
+	}
+	for _, item := range ranges {
+		if item.value < item.min || item.value > item.max {
+			return badRequest("%s 应在 %d 到 %d 之间，收到 %d", item.field, item.min, item.max, item.value)
+		}
+	}
+
+	err := requireRealDate(input.Year, input.Month, input.Day)
+	if err != nil {
+		return err
+	}
+	if _, err = requireGender(string(input.Gender)); err != nil {
+		return err
+	}
+	if err = checkFloatRange(input.Longitude, "longitude", -180, 180); err != nil {
+		return err
+	}
+	return checkFloatRange(input.Latitude, "latitude", -90, 90)
+}
+
+// resolveChartOptions 校验选项并合并默认值，再确认真太阳时有经度可用；patch 为 nil 即全用默认值
+func resolveChartOptions(input bazi.Input, patch *bazi.OptionsPatch) (bazi.Options, error) {
+	options := bazi.DefaultOptions
+	if patch != nil {
+		if err := checkOptions(*patch); err != nil {
+			return bazi.Options{}, err
+		}
+		options = bazi.ResolveOptions(*patch)
+	}
+	if options.UseTrueSolarTime && input.Longitude == nil {
+		return bazi.Options{}, badRequest("开启真太阳时需要提供 regionCode 或 longitude")
+	}
+	return options, nil
+}
+
+// validateChart 校验一份要保存的排盘输入与选项，并实际排一次盘确认能算出来
+func validateChart(input bazi.Input, patch *bazi.OptionsPatch) (bazi.Options, error) {
+	if err := checkInput(input); err != nil {
+		return bazi.Options{}, err
+	}
+	options, err := resolveChartOptions(input, patch)
+	if err != nil {
+		return bazi.Options{}, err
+	}
+	if _, err = bazi.Paipan(input, options); err != nil {
+		return bazi.Options{}, badRequest("排盘失败：%s", err.Error())
+	}
+	return options, nil
 }
 
 // checkFloatRange 校验可选浮点数的范围
@@ -131,69 +202,35 @@ func parsePaipanRequest(
 	r *http.Request,
 	store *region.Store,
 ) (input bazi.Input, options bazi.Options, err error) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxRequestBytes))
-	if err != nil {
-		err = badRequest("读取请求体失败")
-		return
-	}
-
 	var req paipanRequest
-	if err = json.Unmarshal(body, &req); err != nil {
-		err = badRequest("请求体不是合法的 JSON")
-		return
-	}
-
-	year, err := requireInt(req.Year, "year", 1, 9999)
-	if err != nil {
-		return
-	}
-	month, err := requireInt(req.Month, "month", 1, 12)
-	if err != nil {
-		return
-	}
-	day, err := requireInt(req.Day, "day", 1, 31)
-	if err != nil {
-		return
-	}
-	if err = requireRealDate(year, month, day); err != nil {
-		return
-	}
-
-	hour, err := requireInt(req.Hour, "hour", 0, 23)
-	if err != nil {
-		return
-	}
-	minute, err := requireInt(req.Minute, "minute", 0, 59)
-	if err != nil {
-		return
-	}
-
-	gender, err := requireGender(req.Gender)
-	if err != nil {
-		return
-	}
-
-	if err = checkFloatRange(req.Longitude, "longitude", -180, 180); err != nil {
-		return
-	}
-	if err = checkFloatRange(req.Latitude, "latitude", -90, 90); err != nil {
-		return
-	}
-	if err = checkOptions(req.Options); err != nil {
+	if err = decodeJSON(r, maxRequestBytes, &req); err != nil {
 		return
 	}
 
 	input = bazi.Input{
-		Year:      year,
-		Month:     month,
-		Day:       day,
-		Hour:      hour,
-		Minute:    minute,
-		Gender:    gender,
+		Gender:    bazi.Gender(req.Gender),
 		Name:      strings.TrimSpace(req.Name),
 		Location:  strings.TrimSpace(req.Location),
 		Longitude: req.Longitude,
 		Latitude:  req.Latitude,
+	}
+	if input.Year, err = requireInt(req.Year, "year"); err != nil {
+		return
+	}
+	if input.Month, err = requireInt(req.Month, "month"); err != nil {
+		return
+	}
+	if input.Day, err = requireInt(req.Day, "day"); err != nil {
+		return
+	}
+	if input.Hour, err = requireInt(req.Hour, "hour"); err != nil {
+		return
+	}
+	if input.Minute, err = requireInt(req.Minute, "minute"); err != nil {
+		return
+	}
+	if err = checkInput(input); err != nil {
+		return
 	}
 
 	if code := strings.TrimSpace(req.RegionCode); code != "" {
@@ -213,11 +250,7 @@ func parsePaipanRequest(
 		input.Location = store.FullName(code)
 	}
 
-	options = bazi.ResolveOptions(req.Options)
-	if options.UseTrueSolarTime && input.Longitude == nil {
-		err = badRequest("开启真太阳时需要提供 regionCode 或 longitude")
-		return
-	}
+	options, err = resolveChartOptions(input, &req.Options)
 	return
 }
 

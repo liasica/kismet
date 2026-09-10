@@ -10,7 +10,8 @@
 main.go            入口，go:embed 内嵌 data/region 与 web/app/dist
 internal/bazi/     八字排盘的 Go 实现
 internal/region/   行政区划查询
-internal/httpapi/  HTTP 接口：排盘、区划、DeepSeek 解读转发、SPA 静态资源
+internal/report/   解读报告的持久化与分享，bbolt 单文件存储
+internal/httpapi/  HTTP 接口：排盘、区划、DeepSeek 解读转发、报告分享、SPA 静态资源
 data/              语言中立的数据：区划 JSON 与黄金基准，Go 与 TypeScript 读同一份
 web/core/          排盘引擎与区划查询，TypeScript，纯计算、无 UI 与网络依赖
 web/app/           React SPA，直接引 core 在浏览器本地排盘，只有命理解读调后端
@@ -68,6 +69,7 @@ Go 服务只做请求解析与转发，不含排盘逻辑。环境变量：
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
 | `PORT` | `36579` | 监听端口 |
+| `DB_PATH` | `kismet.db` | 报告与分享的数据文件 |
 | `DEEPSEEK_API_KEY` | 空 | 未设置时解读接口返回 503 |
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容的接口地址 |
 | `DEEPSEEK_MODEL` | `deepseek-v4-flash` | 模型名 |
@@ -78,7 +80,12 @@ Go 服务只做请求解析与转发，不含排盘逻辑。环境变量：
 | `GET /health` | 存活检查 |
 | `GET /api/options` | 选项默认值与可用的五行评分策略，客户端不必硬编码 |
 | `POST /api/paipan` | 排盘，加 `?format=text` 返回竖排文字 |
-| `POST /api/analyze` | 命理解读，收 `{"prompt"}`，以 SSE 流式返回 DeepSeek 的回复 |
+| `POST /api/analyze` | 命理解读，收 `{"prompt", "reportId", "input", "options"}`，以 SSE 流式返回 DeepSeek 的回复；带 `reportId` 时输入与解读正文存成报告 |
+| `GET /api/reports/{id}/share` | 报告的分享状态，未分享返回 404 |
+| `POST /api/reports/{id}/share` | 开启分享或改密码，收 `{"password", "input", "options", "analysis"}`，返回 `{"hash", "locked"}` |
+| `DELETE /api/reports/{id}/share` | 取消分享 |
+| `GET /api/shares/{hash}` | 查看分享，设了密码只返回 `{"locked": true}` |
+| `POST /api/shares/{hash}/unlock` | 收 `{"password"}`，密码正确返回报告内容 |
 | `GET /api/regions/provinces` | 省级列表 |
 | `GET /api/regions/search?q=&limit=` | 按名称跨级搜索，四级都命中，带完整地名与代码路径 |
 | `GET /api/regions/{code}` | 单条区划，带完整地名与乡镇条数 |
