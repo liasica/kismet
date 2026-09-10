@@ -1,0 +1,16 @@
+.git
+.github
+bin/
+**/node_modules
+web/app/dist
+data/fixtures
+.env
+.env.*
+!.env.example
+.claude
+.codex
+.superpowers
+.agent
+.idea
+.vscode
+**/*.md

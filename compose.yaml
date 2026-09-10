@@ -1,0 +1,15 @@
+# 服务器部署用：镜像由 GitHub Actions 推到 GHCR，同目录的 .env 由部署流程写入
+# 只监听回环地址，TLS 与对外访问交给宿主机的 nginx
+services:
+  kismet:
+    image: ghcr.io/liasica/kismet:${IMAGE_TAG:-latest}
+    container_name: kismet
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - '127.0.0.1:36579:36579'
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
