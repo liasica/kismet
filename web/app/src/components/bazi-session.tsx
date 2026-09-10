@@ -5,7 +5,7 @@ import type { PaipanOptions } from "@kismet/core"
 import { INITIAL_OPTIONS } from "@/lib/bazi"
 import { INITIAL_BIRTH_INFO, type BirthInfo } from "@/lib/birth-info"
 
-/** 八字模块在本次会话里的表单值与提交状态，表单页写、报告页读 */
+/** 八字模块最近一次提交的表单值与提交状态，表单页提交、收藏页打开报告时写，报告页读 */
 export interface BaziSession {
   birth: BirthInfo
   options: PaipanOptions

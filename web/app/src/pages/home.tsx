@@ -69,13 +69,6 @@ function PalaceFigure() {
 export function HomePage() {
   return (
     <section className="flex flex-col gap-8">
-      <div className="flex flex-col gap-2">
-        <h1 className="font-serif text-2xl tracking-wide">选择命理体系</h1>
-        <p className="text-sm text-muted-foreground">
-          填入出生时刻与地点，在本地排出命盘，再交给 DeepSeek 解读。
-        </p>
-      </div>
-
       <div className="grid gap-6 md:grid-cols-2">
         <ModuleCard
           eyebrow="Four Pillars"

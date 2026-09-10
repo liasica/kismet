@@ -97,8 +97,10 @@ export function BaziReportPage() {
               analysis={analysis}
             />
           )}
+          {/* 带 edit 进表单页，表单页用本次报告的值初始化草稿 */}
           <Link
             to="/bazi"
+            state={{ edit: true }}
             className={buttonVariants({ variant: "outline", size: "sm" })}
           >
             <RiArrowLeftLine data-icon="inline-start" />

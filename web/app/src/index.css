@@ -176,6 +176,19 @@
     @apply font-sans;
     }
 }
+
+/* 横向滚动行两端渐隐的宽度，注册后才能过渡 */
+@property --fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
 @layer components {
   /* 首页入口卡片：光斑跟随指针，照亮边框缝隙与底纹 */
   .module-card {
@@ -244,6 +257,30 @@
   }
   .time-list::-webkit-scrollbar {
     display: none;
+  }
+
+  /* 横向滚动行：不显示滚动条，还有内容的一侧渐隐提示可滚动 */
+  .scroll-row {
+    scrollbar-width: none;
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      black var(--fade-start),
+      black calc(100% - var(--fade-end)),
+      transparent
+    );
+    transition:
+      --fade-start 150ms,
+      --fade-end 150ms;
+  }
+  .scroll-row::-webkit-scrollbar {
+    display: none;
+  }
+  .scroll-row[data-fade-start] {
+    --fade-start: 1.5rem;
+  }
+  .scroll-row[data-fade-end] {
+    --fade-end: 1.5rem;
   }
 
   /* DeepSeek 解读的 Markdown 正文 */

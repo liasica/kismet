@@ -2,6 +2,7 @@ import * as React from "react"
 import { cn } from "cn"
 
 import { Badge } from "@/components/ui/badge"
+import { ScrollRow } from "@/components/scroll-row"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -191,7 +192,7 @@ function FortuneView({ chart }: { chart: Chart }) {
             折算依据 {chart.qiYun.term.name} {chart.qiYun.term.time}
           </span>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <ScrollRow>
           {chart.decades.map((d, i) => (
             <button
               key={d.index}
@@ -210,7 +211,7 @@ function FortuneView({ chart }: { chart: Chart }) {
               <span className="text-muted-foreground">{d.startYear}</span>
             </button>
           ))}
-        </div>
+        </ScrollRow>
       </div>
 
       <div className="flex flex-col gap-2">
@@ -220,7 +221,7 @@ function FortuneView({ chart }: { chart: Chart }) {
             {current?.sixtyCycle} 大运 {current?.startYear}-{current?.endYear}
           </span>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <ScrollRow>
           {years.map((y, i) => (
             <button
               key={y.year}
@@ -239,7 +240,7 @@ function FortuneView({ chart }: { chart: Chart }) {
               </span>
             </button>
           ))}
-        </div>
+        </ScrollRow>
       </div>
 
       <div className="flex flex-col gap-2">
@@ -247,7 +248,7 @@ function FortuneView({ chart }: { chart: Chart }) {
           <span>流月</span>
           <span>{year?.year} 年，以节为界</span>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <ScrollRow>
           {months.map((m) => (
             <div
               key={m.termName}
@@ -263,7 +264,7 @@ function FortuneView({ chart }: { chart: Chart }) {
               </span>
             </div>
           ))}
-        </div>
+        </ScrollRow>
       </div>
     </div>
   )

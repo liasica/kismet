@@ -83,7 +83,7 @@ make fixtures   # 重新生成黄金基准并用 Go 侧比对
 
 ## 命理解读
 
-`POST /api/analyze` 收 `{"prompt": string, "reportId", "input", "options"}`，服务端加上模型名转发给 DeepSeek 的 `chat/completions`，`stream: true`，把上游 SSE 逐行写回；思考模式下流里先出 `reasoning_content` 再出 `content`，服务端把思考过程按行打到控制台，前端只渲染正文，思考阶段显示「思考中」。提示词由前端 `web/app/src/lib/analysis.ts` 拼装，把姓名、出生时刻、出生地、性别与 `toText(chart, { years: true })` 的文字排盘填进固定模板，界面上可以展开查看。
+`POST /api/analyze` 收 `{"prompt": string, "reportId", "input", "options"}`，服务端加上模型名转发给 DeepSeek 的 `chat/completions`，`stream: true`，把上游 SSE 逐行写回；思考模式下流里先出 `reasoning_content` 再出 `content`，服务端把思考过程按行打到控制台，前端只渲染正文，思考阶段显示「思考中」。提示词由前端 `web/app/src/lib/analysis.ts` 拼装，把姓名、出生时刻、出生地、性别与 `toText(chart, { years: true })` 的文字排盘填进固定模板。界面上不出现所用模型的名字，也不提供提示词的查看入口。
 
 带 `reportId` 时服务端在转发前把排盘输入与选项存成报告，流结束（含客户端中途断开）后把已生成的正文写回同一份，`reportId` 由前端在提交表单时生成（128 位随机数的 32 位十六进制），持有 id 即可管理这份报告的分享。
 
@@ -101,7 +101,7 @@ make fixtures   # 重新生成黄金基准并用 Go 侧比对
 - 颜色只用语义 token（`bg-background`、`text-muted-foreground` 等），不写 `bg-blue-500` 这类裸值，也不手写 `dark:` 覆盖
 - 间距用 `flex` + `gap-*`，不用 `space-x-*` / `space-y-*`；宽高相等用 `size-*`
 - 表单用 `FieldGroup` + `Field` 组合，不用 `div` 加 `space-y-*` 拼版；出生信息表单 `birth-form.tsx` 各命理模块共用，模块特有选项以 `children` 接在后面
-- 所有页面共用 `App.tsx` 容器的宽度（`max-w-4xl`），页面内不再各自设最大宽度；结果另开报告页；表单值放在 `bazi-session.tsx` 的会话存储里（sessionStorage），报告页据此重新排盘，刷新不丢；报告可收藏到 localStorage（`web/app/src/lib/reports.ts`），报告页头部有收藏开关，解读结束后自动收藏并更新正文；`/saved` 以卡片列出全部收藏，卡片以四柱为主体、沿用首页卡片的光斑特效，点开即按原表单值重新排盘并展示保存的解读
+- 所有页面共用 `App.tsx` 容器的宽度（`max-w-4xl`），页面内不再各自设最大宽度；结果另开报告页；表单草稿只在表单页组件内，提交时才写入 `bazi-session.tsx` 的会话存储（sessionStorage），报告页据此重新排盘，刷新不丢，「返回修改」以路由 state 带回上次提交的值，其余入口进表单页都是空表单；报告可收藏到 localStorage（`web/app/src/lib/reports.ts`），报告页头部有收藏开关，解读结束后自动收藏并更新正文；`/saved` 以卡片列出全部收藏，卡片以四柱为主体、沿用首页卡片的光斑特效，点开即按原表单值重新排盘并展示保存的解读
 - 弹层内的可滚动列表不显示滚动条，用 `.time-list` 那样的渐隐边缘提示可滚动
 - 主题切换由 `web/app/src/components/theme-provider.tsx` 提供，按 `d` 键在明暗之间切换
 - 提交前 `make lint` 必须无 issue，`make test` 必须全绿

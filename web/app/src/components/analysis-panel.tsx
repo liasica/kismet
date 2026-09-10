@@ -36,7 +36,6 @@ export function AnalysisPanel({
   )
   const [text, setText] = React.useState(initialText ?? "")
   const [error, setError] = React.useState<string>()
-  const [showPrompt, setShowPrompt] = React.useState(false)
   const abortRef = React.useRef<AbortController | null>(null)
 
   React.useEffect(() => () => abortRef.current?.abort(), [])
@@ -82,37 +81,19 @@ export function AnalysisPanel({
   return (
     <section className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h3 className="font-heading text-lg">命理解读</h3>
-          <span className="text-xs text-muted-foreground">DeepSeek</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowPrompt((v) => !v)}
-          >
-            {showPrompt ? "收起提示词" : "查看提示词"}
+        <h3 className="font-heading text-lg">命理解读</h3>
+        {busy ? (
+          <Button variant="outline" size="sm" onClick={stop}>
+            停止
+            <RiStopLine />
           </Button>
-          {busy ? (
-            <Button variant="outline" size="sm" onClick={stop}>
-              停止
-              <RiStopLine />
-            </Button>
-          ) : (
-            <Button size="sm" onClick={() => void start()}>
-              {status === "idle" ? "开始解读" : "重新解读"}
-              <RiSparklingLine />
-            </Button>
-          )}
-        </div>
+        ) : (
+          <Button size="sm" onClick={() => void start()}>
+            {status === "idle" ? "开始解读" : "重新解读"}
+            <RiSparklingLine />
+          </Button>
+        )}
       </div>
-
-      {showPrompt && (
-        <pre className="max-h-80 overflow-auto border border-border bg-muted/40 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap">
-          {prompt}
-        </pre>
-      )}
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
