@@ -7,10 +7,14 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# 前端
 node_modules
-dist
-dist-ssr
+web/app/dist/*
+!web/app/dist/.gitkeep
 *.local
+
+# Go 构建产物
+/bin/
 
 # Editor directories and files
 .vscode/*
@@ -22,3 +26,20 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Cache & coverage
+.eslintcache
+.pnpm-store/
+*.tsbuildinfo
+coverage/
+
+# AI 工具本地目录
+.claude/
+.codex/
+.superpowers/
+.agent/

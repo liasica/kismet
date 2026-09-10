@@ -1,0 +1,28 @@
+{
+  "name": "kismet-web",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @kismet/web dev",
+    "build": "pnpm --filter @kismet/web build",
+    "preview": "pnpm --filter @kismet/web preview",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "fixtures": "pnpm --filter @kismet/core fixtures",
+    "paipan": "pnpm --filter @kismet/core paipan",
+    "format": "prettier --write \"**/*.{ts,tsx}\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^10",
+    "eslint": "^10",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17",
+    "prettier": "^3.8.3",
+    "prettier-plugin-tailwindcss": "^0.8.0",
+    "typescript": "~6",
+    "typescript-eslint": "^8"
+  }
+}

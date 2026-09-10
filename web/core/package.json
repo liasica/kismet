@@ -1,0 +1,26 @@
+{
+  "name": "@kismet/core",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "八字排盘引擎与中国行政区划数据，纯计算，无 UI 与网络依赖",
+  "exports": {
+    ".": "./src/bazi/index.ts",
+    "./region": "./src/region/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "paipan": "tsx scripts/paipan.ts",
+    "fixtures": "tsx scripts/export-fixtures.ts"
+  },
+  "dependencies": {
+    "tyme4ts": "^1.5.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "tsx": "^4.23.13",
+    "typescript": "~6",
+    "vitest": "^5.0.0"
+  }
+}

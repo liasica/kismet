@@ -1,0 +1,307 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/raleway";
+@import "@fontsource-variable/noto-serif-sc";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Oxanium 不用字体包自带的声明，改写上伸／下伸比例（原为 75%／25%）。
+ * 它是 html 默认字体，行框基线由它决定；汉字回落到思源宋体后以同一基线绘制，
+ * 按原比例会整体偏上约 0.13em，按钮、标签里的中文看着不居中。
+ * 声明内容取自 @fontsource-variable/oxanium 5.3.0 的 index.css
+ */
+@font-face {
+    font-family: 'Oxanium Variable';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 200 800;
+    src: url('@fontsource-variable/oxanium/files/oxanium-latin-ext-wght-normal.woff2') format('woff2-variations');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+    ascent-override: 86%;
+    descent-override: 14%;
+    line-gap-override: 0%;
+}
+
+@font-face {
+    font-family: 'Oxanium Variable';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 200 800;
+    src: url('@fontsource-variable/oxanium/files/oxanium-latin-wght-normal.woff2') format('woff2-variations');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    ascent-override: 86%;
+    descent-override: 14%;
+    line-gap-override: 0%;
+}
+
+:root {
+    /* 五行色，取命理界惯例的木青、火赤、土黄、金白、水黑，明色在浅底上取深值 */
+    --wood: oklch(0.52 0.11 155);
+    --fire: oklch(0.55 0.18 25);
+    --earth: oklch(0.52 0.09 70);
+    --metal: oklch(0.55 0.1 95);
+    --water: oklch(0.48 0.09 250);
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.147 0.004 49.3);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.147 0.004 49.3);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.147 0.004 49.3);
+    --primary: oklch(0.511 0.096 186.391);
+    --primary-foreground: oklch(0.984 0.014 180.72);
+    --secondary: oklch(0.967 0.001 286.375);
+    --secondary-foreground: oklch(0.21 0.006 285.885);
+    --muted: oklch(0.96 0.002 17.2);
+    --muted-foreground: oklch(0.547 0.021 43.1);
+    --accent: oklch(0.96 0.002 17.2);
+    --accent-foreground: oklch(0.214 0.009 43.1);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: oklch(0.922 0.005 34.3);
+    --input: oklch(0.922 0.005 34.3);
+    --ring: oklch(0.714 0.014 41.2);
+    --chart-1: oklch(0.865 0.127 207.078);
+    --chart-2: oklch(0.715 0.143 215.221);
+    --chart-3: oklch(0.609 0.126 221.723);
+    --chart-4: oklch(0.52 0.105 223.128);
+    --chart-5: oklch(0.45 0.085 224.283);
+    --radius: 0.625rem;
+    --sidebar: oklch(0.986 0.002 67.8);
+    --sidebar-foreground: oklch(0.147 0.004 49.3);
+    --sidebar-primary: oklch(0.6 0.118 184.704);
+    --sidebar-primary-foreground: oklch(0.984 0.014 180.72);
+    --sidebar-accent: oklch(0.96 0.002 17.2);
+    --sidebar-accent-foreground: oklch(0.214 0.009 43.1);
+    --sidebar-border: oklch(0.922 0.005 34.3);
+    --sidebar-ring: oklch(0.714 0.014 41.2);
+}
+
+.dark {
+    --wood: oklch(0.78 0.13 155);
+    --fire: oklch(0.72 0.16 30);
+    --earth: oklch(0.76 0.1 72);
+    --metal: oklch(0.82 0.11 95);
+    --water: oklch(0.75 0.11 250);
+    --background: oklch(0.147 0.004 49.3);
+    --foreground: oklch(0.986 0.002 67.8);
+    --card: oklch(0.214 0.009 43.1);
+    --card-foreground: oklch(0.986 0.002 67.8);
+    --popover: oklch(0.214 0.009 43.1);
+    --popover-foreground: oklch(0.986 0.002 67.8);
+    --primary: oklch(0.437 0.078 188.216);
+    --primary-foreground: oklch(0.984 0.014 180.72);
+    --secondary: oklch(0.274 0.006 286.033);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.268 0.011 36.5);
+    --muted-foreground: oklch(0.714 0.014 41.2);
+    --accent: oklch(0.268 0.011 36.5);
+    --accent-foreground: oklch(0.986 0.002 67.8);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.547 0.021 43.1);
+    --chart-1: oklch(0.865 0.127 207.078);
+    --chart-2: oklch(0.715 0.143 215.221);
+    --chart-3: oklch(0.609 0.126 221.723);
+    --chart-4: oklch(0.52 0.105 223.128);
+    --chart-5: oklch(0.45 0.085 224.283);
+    --sidebar: oklch(0.214 0.009 43.1);
+    --sidebar-foreground: oklch(0.986 0.002 67.8);
+    --sidebar-primary: oklch(0.704 0.14 182.503);
+    --sidebar-primary-foreground: oklch(0.277 0.046 192.524);
+    --sidebar-accent: oklch(0.268 0.011 36.5);
+    --sidebar-accent-foreground: oklch(0.986 0.002 67.8);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.547 0.021 43.1);
+}
+
+@theme inline {
+    --font-sans: 'Oxanium Variable', 'Noto Serif SC Variable', sans-serif;
+    --font-heading: 'Raleway Variable', 'Noto Serif SC Variable', sans-serif;
+    --font-serif: 'Noto Serif SC Variable', serif;
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-water: var(--water);
+    --color-metal: var(--metal);
+    --color-earth: var(--earth);
+    --color-fire: var(--fire);
+    --color-wood: var(--wood);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    }
+  body {
+    @apply bg-background text-foreground;
+    }
+  html {
+    @apply font-sans;
+    }
+}
+@layer components {
+  /* 首页入口卡片：光斑跟随指针，照亮边框缝隙与底纹 */
+  .module-card {
+    --x: 50%;
+    --y: 50%;
+    --dx: 0;
+    --dy: 0;
+    --glow: var(--primary);
+  }
+  .module-card-muted {
+    --glow: var(--muted-foreground);
+  }
+  .module-card-glow,
+  .module-card-light {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 300ms ease-out;
+  }
+  .module-card-glow {
+    background: radial-gradient(
+      20rem circle at var(--x) var(--y),
+      color-mix(in oklch, var(--glow) 60%, transparent),
+      transparent 60%
+    );
+  }
+  .module-card-light {
+    background: radial-gradient(
+      24rem circle at var(--x) var(--y),
+      color-mix(in oklch, var(--glow) 10%, transparent),
+      transparent 65%
+    );
+  }
+  .module-card:hover .module-card-glow,
+  .module-card:hover .module-card-light {
+    opacity: 1;
+  }
+  .module-card-figure {
+    transform: translate(calc(var(--dx) * 6px), calc(var(--dy) * 6px));
+    transition:
+      transform 300ms ease-out,
+      opacity 300ms ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .module-card-glow,
+    .module-card-light,
+    .module-card-figure {
+      transition: none;
+    }
+    .module-card-figure {
+      transform: none;
+    }
+  }
+
+  /* 出生时间选择器的时分列：不显示滚动条，上下边缘渐隐提示可滚动 */
+  .time-list {
+    scrollbar-width: none;
+    mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      black 0.75rem,
+      black calc(100% - 0.75rem),
+      transparent
+    );
+  }
+  .time-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* DeepSeek 解读的 Markdown 正文 */
+  .markdown {
+    @apply flex max-w-3xl flex-col gap-4 text-base leading-relaxed;
+  }
+  .markdown h1,
+  .markdown h2,
+  .markdown h3,
+  .markdown h4 {
+    @apply font-heading mt-4 font-semibold first:mt-0;
+  }
+  .markdown h1 {
+    @apply text-2xl;
+  }
+  .markdown h2 {
+    @apply text-xl;
+  }
+  .markdown h3,
+  .markdown h4 {
+    @apply text-lg;
+  }
+  .markdown ul,
+  .markdown ol {
+    @apply flex flex-col gap-1.5 pl-6;
+  }
+  .markdown ul {
+    @apply list-disc;
+  }
+  .markdown ol {
+    @apply list-decimal;
+  }
+  .markdown strong {
+    @apply font-semibold text-foreground;
+  }
+  .markdown blockquote {
+    @apply border-l-2 border-border pl-4 text-muted-foreground;
+  }
+  .markdown code {
+    @apply bg-muted px-1 py-0.5 font-mono text-sm;
+  }
+  .markdown pre {
+    @apply overflow-x-auto border border-border bg-muted/40 p-4;
+  }
+  .markdown pre code {
+    @apply bg-transparent p-0;
+  }
+  .markdown hr {
+    @apply border-border;
+  }
+  .markdown table {
+    @apply w-full border-collapse text-left;
+  }
+  .markdown th,
+  .markdown td {
+    @apply border border-border px-2 py-1 align-top;
+  }
+  .markdown th {
+    @apply bg-muted/40 font-semibold;
+  }
+}

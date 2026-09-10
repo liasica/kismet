@@ -1,0 +1,7 @@
+packages:
+  - core
+  - app
+
+allowBuilds:
+  esbuild: true
+  msw: false
