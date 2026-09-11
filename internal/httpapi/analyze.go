@@ -14,10 +14,12 @@ import (
 	"time"
 
 	"github.com/liasica/kismet/internal/bazi"
+	"github.com/liasica/kismet/internal/birth"
 	"github.com/liasica/kismet/internal/report"
+	"github.com/liasica/kismet/internal/ziwei"
 )
 
-// 命理解读经 DeepSeek 完成：按请求里的排盘输入排盘、拼出提示词（见 prompt.go）包成 chat completions 请求，
+// 命理解读经 DeepSeek 完成：各体系的解析器排盘并拼提示词（prompt_bazi.go、prompt_ziwei.go）包成 chat completions 请求，
 // 再把上游的 SSE 逐行写回客户端，客户端按 OpenAI 兼容格式解析；
 // 思考模式下流里先出 reasoning_content 再出 content，思考过程同时打到控制台。
 // 请求带 reportId 时，排盘输入在解读开始前存成报告，解读正文在流结束后写回同一份报告
@@ -69,20 +71,27 @@ func DeepSeekConfigFromEnv() DeepSeekConfig {
 	return config
 }
 
-// analyzeRequest 解读请求体：排盘输入与选项，服务端据此排盘并拼提示词
+// analyzeRequest 解读请求体：排盘输入与该体系的选项，服务端据此排盘并拼提示词
 type analyzeRequest struct {
 	// ReportID 报告 id，带上时输入与解读结果存成报告；为空则只解读不保存
-	ReportID string             `json:"reportId"`
-	Input    *bazi.Input        `json:"input"`
-	Options  *bazi.OptionsPatch `json:"options"`
+	ReportID string          `json:"reportId"`
+	Input    *birth.Input    `json:"input"`
+	Options  json.RawMessage `json:"options"`
 }
 
-// analyzeCommand 解析后的解读请求
-type analyzeCommand struct {
-	// ReportID 为空则不保存
-	ReportID string
-	Chart    bazi.Chart
+// analysisPlan 解析后的解读请求：报告要存的内容与要发给模型的消息
+type analysisPlan struct {
+	// reportID 为空则不保存
+	reportID string
+	system   string
+	input    birth.Input
+	// options 合并默认值后的选项，原样存进报告
+	options  json.RawMessage
+	messages []chatMessage
 }
+
+// analysisParser 各体系把请求解析成解读计划：排盘、拼提示词
+type analysisParser func(r *http.Request, now time.Time) (analysisPlan, error)
 
 // chatMessage OpenAI 兼容的对话消息
 type chatMessage struct {
@@ -125,8 +134,18 @@ type upstreamError struct {
 	} `json:"error"`
 }
 
-// handleAnalyze 命理解读，响应为 text/event-stream
-func (s *Server) handleAnalyze(w http.ResponseWriter, r *http.Request) {
+// handleBaziAnalyze 八字解读
+func (s *Server) handleBaziAnalyze(w http.ResponseWriter, r *http.Request) {
+	s.serveAnalysis(w, r, s.parseBaziAnalysis)
+}
+
+// handleZiweiAnalyze 紫微斗数解读
+func (s *Server) handleZiweiAnalyze(w http.ResponseWriter, r *http.Request) {
+	s.serveAnalysis(w, r, s.parseZiweiAnalysis)
+}
+
+// serveAnalysis 命理解读的公共流程，响应为 text/event-stream
+func (s *Server) serveAnalysis(w http.ResponseWriter, r *http.Request, parse analysisParser) {
 	if !s.deepSeek.Enabled() {
 		writeError(w, apiError{
 			status:  http.StatusServiceUnavailable,
@@ -135,51 +154,38 @@ func (s *Server) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cmd, err := parseAnalyzeRequest(r)
+	plan, err := parse(r, time.Now())
 	if err != nil {
 		writeError(w, err)
 		return
 	}
 
 	// 输入先存成报告，解读中途断开也留得下已生成的正文
-	if cmd.ReportID != "" {
-		var options []byte
-		options, err = json.Marshal(cmd.Chart.Options)
-		if err != nil {
+	if plan.reportID != "" {
+		if err = s.reports.Upsert(plan.reportID, plan.system, plan.input, plan.options); err != nil {
 			writeError(w, err)
 			return
 		}
-		if err = s.reports.Upsert(cmd.ReportID, report.SystemBazi, cmd.Chart.Input, options); err != nil {
-			writeError(w, err)
-			return
-		}
-	}
-
-	var messages []chatMessage
-	if messages, err = analysisMessages(cmd.Chart, time.Now()); err != nil {
-		writeError(w, err)
-		return
 	}
 
 	var resp *http.Response
-	if resp, err = s.requestDeepSeek(r.Context(), messages); err != nil {
+	if resp, err = s.requestDeepSeek(r.Context(), plan.messages); err != nil {
 		writeError(w, err)
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	content := relayStream(w, resp.Body)
-	if cmd.ReportID == "" || content == "" {
+	if plan.reportID == "" || content == "" {
 		return
 	}
-	if err = s.reports.SaveAnalysis(cmd.ReportID, s.deepSeek.Model, content); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "保存报告 %s 的解读失败 %v\n", cmd.ReportID, err)
+	if err = s.reports.SaveAnalysis(plan.reportID, s.deepSeek.Model, content); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "保存报告 %s 的解读失败 %v\n", plan.reportID, err)
 	}
 }
 
-// parseAnalyzeRequest 解析并校验解读请求：排盘输入必填并实际排盘，带 reportId 时一并校验 id
-func parseAnalyzeRequest(r *http.Request) (cmd analyzeCommand, err error) {
-	var req analyzeRequest
+// decodeAnalyzeRequest 读请求体并校验必填项与报告 id
+func decodeAnalyzeRequest(r *http.Request) (req analyzeRequest, reportID string, err error) {
 	if err = decodeJSON(r, maxRequestBytes, &req); err != nil {
 		return
 	}
@@ -187,13 +193,55 @@ func parseAnalyzeRequest(r *http.Request) (cmd analyzeCommand, err error) {
 		err = badRequest("input 缺失")
 		return
 	}
-
 	if req.ReportID != "" {
-		if cmd.ReportID, err = requireReportID(req.ReportID); err != nil {
-			return
-		}
+		reportID, err = requireReportID(req.ReportID)
 	}
-	cmd.Chart, err = resolveBaziChart(*req.Input, req.Options)
+	return
+}
+
+// parseBaziAnalysis 八字：排盘并按子平法拼提示词
+func (s *Server) parseBaziAnalysis(r *http.Request, now time.Time) (plan analysisPlan, err error) {
+	req, reportID, err := decodeAnalyzeRequest(r)
+	if err != nil {
+		return
+	}
+	patch, err := decodeOptions[bazi.OptionsPatch](req.Options)
+	if err != nil {
+		return
+	}
+	chart, err := resolveBaziChart(*req.Input, patch)
+	if err != nil {
+		return
+	}
+
+	plan = analysisPlan{reportID: reportID, system: report.SystemBazi, input: chart.Input}
+	if plan.options, err = marshalOptions(chart.Options); err != nil {
+		return
+	}
+	plan.messages, err = baziAnalysisMessages(chart, now)
+	return
+}
+
+// parseZiweiAnalysis 紫微：排盘并按中州派拼提示词，附知识库里的相关条目
+func (s *Server) parseZiweiAnalysis(r *http.Request, now time.Time) (plan analysisPlan, err error) {
+	req, reportID, err := decodeAnalyzeRequest(r)
+	if err != nil {
+		return
+	}
+	patch, err := decodeOptions[ziwei.OptionsPatch](req.Options)
+	if err != nil {
+		return
+	}
+	chart, err := resolveZiweiChart(*req.Input, patch)
+	if err != nil {
+		return
+	}
+
+	plan = analysisPlan{reportID: reportID, system: report.SystemZiwei, input: chart.Input}
+	if plan.options, err = marshalOptions(chart.Options); err != nil {
+		return
+	}
+	plan.messages, err = ziweiAnalysisMessages(chart, s.knowledge, now)
 	return
 }
 

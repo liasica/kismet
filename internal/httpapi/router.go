@@ -12,6 +12,7 @@ import (
 	"github.com/liasica/kismet/internal/bazi"
 	"github.com/liasica/kismet/internal/region"
 	"github.com/liasica/kismet/internal/report"
+	"github.com/liasica/kismet/internal/ziwei/knowledge"
 )
 
 // Server 接口层，持有区划数据、DeepSeek 配置、报告存储、后台密码与前端构建产物
@@ -19,7 +20,9 @@ type Server struct {
 	store    *region.Store
 	deepSeek DeepSeekConfig
 	reports  *report.Store
-	unlocks  *unlockLimiter
+	// knowledge 紫微解读的讲义切片
+	knowledge *knowledge.Library
+	unlocks   *unlockLimiter
 	// adminPassword 后台管理的密码，为空即不开放后台
 	adminPassword string
 	// adminLimiter 管理密码的错误计数
@@ -32,6 +35,7 @@ func NewServer(
 	store *region.Store,
 	deepSeek DeepSeekConfig,
 	reports *report.Store,
+	lib *knowledge.Library,
 	adminPassword string,
 	web fs.FS,
 ) *Server {
@@ -39,6 +43,7 @@ func NewServer(
 		store:         store,
 		deepSeek:      deepSeek,
 		reports:       reports,
+		knowledge:     lib,
 		unlocks:       newUnlockLimiter(),
 		adminPassword: adminPassword,
 		adminLimiter:  newUnlockLimiter(),
@@ -106,8 +111,9 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/bazi/options", s.handleBaziOptions)
 	mux.HandleFunc("POST /api/bazi/paipan", s.handleBaziPaipan)
-	mux.HandleFunc("POST /api/bazi/analyze", s.handleAnalyze)
+	mux.HandleFunc("POST /api/bazi/analyze", s.handleBaziAnalyze)
 	mux.HandleFunc("POST /api/ziwei/paipan", s.handleZiweiPaipan)
+	mux.HandleFunc("POST /api/ziwei/analyze", s.handleZiweiAnalyze)
 	mux.HandleFunc("GET /api/reports/{id}/share", s.handleGetShare)
 	mux.HandleFunc("POST /api/reports/{id}/share", s.handleCreateShare)
 	mux.HandleFunc("DELETE /api/reports/{id}/share", s.handleDeleteShare)
