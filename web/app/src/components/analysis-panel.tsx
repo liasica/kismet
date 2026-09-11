@@ -4,15 +4,13 @@ import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
 import { Button } from "@/components/ui/button"
-import type { BaziChart } from "@kismet/core"
-import { streamAnalysis } from "@/lib/analysis"
+import { streamAnalysis, type AnalysisRecord } from "@/lib/analysis"
 
 type Status = "idle" | "thinking" | "streaming" | "done" | "error"
 
 interface AnalysisPanelProps {
-  chart: BaziChart
-  /** 报告 id，解读结果以此存到服务端 */
-  reportId: string
+  /** 体系、报告 id、排盘输入与选项 */
+  record: AnalysisRecord
   /** 已收藏的解读正文，有则直接展示 */
   initialText?: string
   /** 一次解读结束（含手动停止）且有正文时回调 */
@@ -25,8 +23,7 @@ interface AnalysisPanelProps {
  * 换盘后由父组件换 `key` 重建，正在进行的请求随组件卸载中止
  */
 export function AnalysisPanel({
-  chart,
-  reportId,
+  record,
   initialText,
   onComplete,
 }: AnalysisPanelProps) {
@@ -49,7 +46,7 @@ export function AnalysisPanel({
     let full = ""
     try {
       await streamAnalysis(
-        { reportId, input: chart.input, options: chart.options },
+        record,
         (delta) => {
           full += delta
           setStatus("streaming")

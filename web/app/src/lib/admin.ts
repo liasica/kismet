@@ -7,15 +7,17 @@
 
 import { useSyncExternalStore } from "react"
 
-import type { PaipanInput, BaziOptions } from "@kismet/core"
+import type { PaipanInput } from "@kismet/core"
 import { API_BASE, readError } from "@/lib/api"
 import type { ShareInfo } from "@/lib/share"
+import type { ReportOptions, System } from "@/lib/system"
 
 /** 列表里的一条报告，不带解读正文 */
 export interface AdminReportSummary {
   id: string
   createdAt: string
   updatedAt: string
+  system: System
   input: PaipanInput
   /** 生成解读的模型名，尚未解读时没有 */
   model?: string
@@ -26,7 +28,7 @@ export interface AdminReportSummary {
 
 /** 单份报告的全部内容 */
 export interface AdminReport extends AdminReportSummary {
-  options: BaziOptions
+  options: ReportOptions
   analysis: string
 }
 

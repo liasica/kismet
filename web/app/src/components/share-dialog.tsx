@@ -31,9 +31,8 @@ import {
 } from "@/components/ui/input-group"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { BaziChart } from "@kismet/core"
 import { errorMessage } from "@/lib/api"
-import { renderPoster } from "@/lib/poster"
+import { renderPoster, type PosterSubject } from "@/lib/poster"
 import {
   createShare,
   fetchShare,
@@ -41,13 +40,15 @@ import {
   shareUrlOf,
   type ShareInfo,
 } from "@/lib/share"
+import { SYSTEMS } from "@/lib/system"
 
 /** 分享状态：`undefined` 还没查回来，`null` 未分享 */
 type ShareState = ShareInfo | null | undefined
 
 interface ShareDialogProps {
   reportId: string
-  chart: BaziChart
+  /** 体系与命盘，长图与建档都从这里取 */
+  subject: PosterSubject
   /** 最新的解读正文，整段排进长图 */
   analysis: string
 }
@@ -57,7 +58,7 @@ interface ShareDialogProps {
  *
  * 链接指向服务端保存的这份报告，可设密码；图片是本地画的长图，含命盘与完整解读，有链接时附二维码
  */
-export function ShareDialog({ reportId, chart, analysis }: ShareDialogProps) {
+export function ShareDialog({ reportId, subject, analysis }: ShareDialogProps) {
   const [open, setOpen] = React.useState(false)
   const [share, setShare] = React.useState<ShareState>()
   const [error, setError] = React.useState<string>()
@@ -106,14 +107,14 @@ export function ShareDialog({ reportId, chart, analysis }: ShareDialogProps) {
           <TabsContent value="link" className="pt-4">
             <LinkPanel
               reportId={reportId}
-              chart={chart}
+              subject={subject}
               analysis={analysis}
               share={share}
               onChange={setShare}
             />
           </TabsContent>
           <TabsContent value="image" className="pt-4">
-            <PosterPanel chart={chart} analysis={analysis} share={share} />
+            <PosterPanel subject={subject} analysis={analysis} share={share} />
           </TabsContent>
         </Tabs>
 
@@ -125,7 +126,7 @@ export function ShareDialog({ reportId, chart, analysis }: ShareDialogProps) {
 
 interface LinkPanelProps {
   reportId: string
-  chart: BaziChart
+  subject: PosterSubject
   analysis: string
   share: ShareState
   onChange: (share: ShareInfo | null) => void
@@ -134,7 +135,7 @@ interface LinkPanelProps {
 /** 链接：创建、改密码、取消，链接一栏可一键复制；创建时把本地的解读正文一并送到服务端 */
 function LinkPanel({
   reportId,
-  chart,
+  subject,
   analysis,
   share,
   onChange,
@@ -159,8 +160,9 @@ function LinkPanel({
     try {
       onChange(
         await createShare(reportId, {
-          input: chart.input,
-          options: chart.options,
+          system: subject.system,
+          input: subject.chart.input,
+          options: subject.chart.options,
           analysis,
           password: locked ? password : "",
         })
@@ -280,7 +282,7 @@ function LinkPanel({
 }
 
 interface PosterPanelProps {
-  chart: BaziChart
+  subject: PosterSubject
   analysis: string
   share: ShareState
 }
@@ -291,7 +293,7 @@ interface Poster {
 }
 
 /** 图片：本地画好长图后预览，可下载、复制到剪贴板或调系统分享 */
-function PosterPanel({ chart, analysis, share }: PosterPanelProps) {
+function PosterPanel({ subject, analysis, share }: PosterPanelProps) {
   const [poster, setPoster] = React.useState<Poster>()
   const [error, setError] = React.useState<string>()
   const [notice, setNotice] = React.useState<string>()
@@ -303,7 +305,7 @@ function PosterPanel({ chart, analysis, share }: PosterPanelProps) {
   React.useEffect(() => {
     if (!loaded) return
     let cancelled = false
-    renderPoster(chart, { shareUrl, analysis })
+    renderPoster(subject, { shareUrl, analysis })
       .then((blob) => {
         if (!cancelled) setPoster({ blob, url: URL.createObjectURL(blob) })
       })
@@ -313,7 +315,7 @@ function PosterPanel({ chart, analysis, share }: PosterPanelProps) {
     return () => {
       cancelled = true
     }
-  }, [chart, shareUrl, analysis, loaded])
+  }, [subject, shareUrl, analysis, loaded])
 
   React.useEffect(
     () => () => {
@@ -322,7 +324,7 @@ function PosterPanel({ chart, analysis, share }: PosterPanelProps) {
     [poster]
   )
 
-  const fileName = `${chart.name || "八字"}-命盘.png`
+  const fileName = `${subject.chart.name || SYSTEMS[subject.system].title}-命盘.png`
   const canCopy =
     typeof ClipboardItem !== "undefined" &&
     typeof navigator.clipboard?.write === "function"
@@ -359,7 +361,7 @@ function PosterPanel({ chart, analysis, share }: PosterPanelProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="max-h-[55vh] overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,black_1rem,black_calc(100%_-_1rem),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="max-h-[55vh] [scrollbar-width:none] overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,black_1rem,black_calc(100%_-_1rem),transparent)] [&::-webkit-scrollbar]:hidden">
         {poster ? (
           <img
             src={poster.url}
@@ -422,7 +424,9 @@ function PosterPanel({ chart, analysis, share }: PosterPanelProps) {
         {(notice || (poster && error)) && (
           <span
             className={
-              error ? "text-sm text-destructive" : "text-sm text-muted-foreground"
+              error
+                ? "text-sm text-destructive"
+                : "text-sm text-muted-foreground"
             }
           >
             {error ?? notice}

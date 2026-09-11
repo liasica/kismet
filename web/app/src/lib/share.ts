@@ -5,9 +5,10 @@
  * 出现在链接里，持有哈希的人只能查看
  */
 
-import type { PaipanInput, BaziOptions } from "@kismet/core"
+import type { PaipanInput } from "@kismet/core"
 
 import { API_BASE, readError } from "@/lib/api"
+import type { ReportOptions, System } from "@/lib/system"
 
 export interface ShareInfo {
   hash: string
@@ -18,8 +19,9 @@ export interface ShareInfo {
 
 /** 分享出去的报告内容 */
 export interface SharedReport {
+  system: System
   input: PaipanInput
-  options: BaziOptions
+  options: ReportOptions
   /** 解读正文 Markdown，尚未解读时为空 */
   analysis: string
   createdAt: string
@@ -34,9 +36,10 @@ export interface SharedView {
 
 /** 开启分享时随请求带上的内容 */
 export interface ShareRequest {
+  system: System
   /** 报告尚未在服务端保存时据此建档 */
   input: PaipanInput
-  options: BaziOptions
+  options: ReportOptions
   /** 本地最新的解读正文，非空时写进服务端的报告 */
   analysis: string
   /** 为空即不设密码 */

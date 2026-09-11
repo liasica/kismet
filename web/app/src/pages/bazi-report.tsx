@@ -90,7 +90,7 @@ export function BaziReportPage() {
           {result.chart && (
             <ShareDialog
               reportId={reportId}
-              chart={result.chart}
+              subject={{ system: "bazi", chart: result.chart }}
               analysis={analysis}
             />
           )}
@@ -112,8 +112,12 @@ export function BaziReportPage() {
           <Separator />
           <AnalysisPanel
             key={session.submittedAt}
-            chart={result.chart}
-            reportId={reportId}
+            record={{
+              system: "bazi",
+              reportId,
+              input: result.chart.input,
+              options: result.chart.options,
+            }}
             initialText={saved?.analysis}
             onComplete={complete}
           />

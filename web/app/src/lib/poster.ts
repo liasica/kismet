@@ -1,7 +1,7 @@
 /**
  * 分享长图：把命盘与完整解读画成一张 PNG
  *
- * 用 Canvas 2D 直接绘制，颜色取页面当前主题的 CSS 变量，四柱按五行着色，
+ * 用 Canvas 2D 直接绘制，颜色取页面当前主题的 CSS 变量；八字画四柱与五行，紫微画十二宫格。
  * 解读正文按 Markdown 的块结构排版，有分享链接时左下角附二维码。
  * 所有坐标都是逻辑像素，先空跑一遍算出总高度，再按高度定倍率实际绘制
  */
@@ -9,7 +9,20 @@
 import { encode } from "uqr"
 
 import { ELEMENT_KEY_ORDER, ELEMENT_NAMES, PILLAR_LABELS } from "@kismet/core"
-import type { BaziChart, FiveElement, PillarKind } from "@kismet/core"
+import type {
+  BaziChart,
+  FiveElement,
+  Mutation,
+  PillarKind,
+  ZiweiChart,
+  ZiweiPalace,
+  ZiweiStar,
+} from "@kismet/core"
+import { SYSTEMS } from "@/lib/system"
+
+/** 要画的命盘，按体系分发 */
+export type PosterSubject =
+  { system: "bazi"; chart: BaziChart } | { system: "ziwei"; chart: ZiweiChart }
 
 const WIDTH = 720
 const PADDING = 56
@@ -43,6 +56,7 @@ interface Palette {
   muted: string
   mutedForeground: string
   border: string
+  destructive: string
   element: Record<FiveElement, string>
 }
 
@@ -55,6 +69,7 @@ function readPalette(): Palette {
     muted: read("--muted"),
     mutedForeground: read("--muted-foreground"),
     border: read("--border"),
+    destructive: read("--destructive"),
     element: {
       木: read("--wood"),
       火: read("--fire"),
@@ -62,6 +77,20 @@ function readPalette(): Palette {
       金: read("--metal"),
       水: read("--water"),
     },
+  }
+}
+
+/** 四化标记的颜色：禄权科取木火水，忌取警示色 */
+function mutationColor(palette: Palette, mutation: Mutation): string {
+  switch (mutation) {
+    case "禄":
+      return palette.element.木
+    case "权":
+      return palette.element.火
+    case "科":
+      return palette.element.水
+    default:
+      return palette.destructive
   }
 }
 
@@ -181,7 +210,12 @@ class Painter {
   }
 
   /** 按宽度逐字折行，粗体与常规片段各按自己的字体量宽 */
-  wrapRuns(runs: Run[], maxWidth: number, size: number, family: string): Line[] {
+  wrapRuns(
+    runs: Run[],
+    maxWidth: number,
+    size: number,
+    family: string
+  ): Line[] {
     const lines: Line[] = []
     let line: Line = []
     let width = 0
@@ -235,7 +269,14 @@ class Painter {
     color: string,
     lineHeight: number
   ) {
-    this.lines(this.wrapRuns(runs, maxWidth, size, family), x, size, family, color, lineHeight)
+    this.lines(
+      this.wrapRuns(runs, maxWidth, size, family),
+      x,
+      size,
+      family,
+      color,
+      lineHeight
+    )
   }
 }
 
@@ -281,7 +322,10 @@ function parseMarkdown(markdown: string): Block[] {
 
   const flushParagraph = () => {
     if (paragraph.length > 0) {
-      blocks.push({ kind: "paragraph", runs: parseInline(joinLines(paragraph)) })
+      blocks.push({
+        kind: "paragraph",
+        runs: parseInline(joinLines(paragraph)),
+      })
       paragraph = []
     }
   }
@@ -293,7 +337,10 @@ function parseMarkdown(markdown: string): Block[] {
   }
   const flushTable = () => {
     if (table.length > 0) {
-      blocks.push({ kind: "table", rows: table.map((row) => row.map(parseInline)) })
+      blocks.push({
+        kind: "table",
+        rows: table.map((row) => row.map(parseInline)),
+      })
       table = []
     }
   }
@@ -352,7 +399,13 @@ function parseMarkdown(markdown: string): Block[] {
       flushQuote()
       // 表头下面的对齐行不是数据
       if (!/^\s*\|(?:\s*:?-+:?\s*\|)+\s*$/.test(line)) {
-        table.push(line.trim().slice(1, -1).split("|").map((cell) => cell.trim()))
+        table.push(
+          line
+            .trim()
+            .slice(1, -1)
+            .split("|")
+            .map((cell) => cell.trim())
+        )
       }
       continue
     }
@@ -361,7 +414,11 @@ function parseMarkdown(markdown: string): Block[] {
     flushTable()
     // 列表项下面缩进的续行接到上一项
     const last = blocks[blocks.length - 1]
-    if (/^\s{2,}/.test(raw) && last?.kind === "item" && paragraph.length === 0) {
+    if (
+      /^\s{2,}/.test(raw) &&
+      last?.kind === "item" &&
+      paragraph.length === 0
+    ) {
       last.runs.push(...parseInline(" " + line.trim()))
       continue
     }
@@ -373,37 +430,65 @@ function parseMarkdown(markdown: string): Block[] {
 
 /** 海报上会出现的全部文字，据此加载字体分片 */
 function textOf(
-  chart: BaziChart,
+  subject: PosterSubject,
   analysis?: string,
   shareUrl?: string
 ): string {
-  const pillars = KINDS.map((k) => chart.pillars[k])
-  return [
-    "FOUR PILLARS KISMET 遇见 未具名 乾造 坤造 元男 元女",
-    "阳历 农历 属 真太阳时 经度差 均时差 分 出生地 东经",
-    "日主 同类 异类 合计 胎元 胎息 命宫 身宫 命理解读 扫码查看完整命盘与解读",
+  const { chart } = subject
+  const common = [
+    "FOUR PILLARS PURPLE STAR KISMET 遇见 未具名 乾造 坤造",
+    "阳历 农历 属 真太阳时 经度差 均时差 分 出生地 东经 命理解读 扫码查看完整命盘与解读",
     "0123456789.-:（），……",
     chart.name,
     chart.time.input,
-    chart.time.lunar,
     chart.time.zodiac,
     chart.time.effective,
     chart.location?.name,
-    ...Object.values(PILLAR_LABELS),
-    ...pillars.flatMap((p) => [
-      p.stem,
-      p.branch,
-      p.stemTenStar,
-      p.sound,
-      ...p.hideStems.flatMap((h) => [h.stem, h.tenStar]),
-    ]),
-    ...Object.values(ELEMENT_NAMES),
-    ...Object.values(chart.elements.seasonalState),
-    chart.elements.strength,
-    ...Object.values(chart.extras),
     analysis,
     shareUrl,
-  ].join("")
+  ]
+  if (subject.system === "ziwei") {
+    const c = subject.chart
+    return [
+      ...common,
+      "阳男 阴男 阳女 阴女 大限顺行 逆行 命宫 身宫 命主 身主 生年四化 借对宫 身 庙旺地平闲陷 禄权科忌化",
+      c.lunar.text,
+      c.lunar.hourBranch,
+      c.bureau.name,
+      c.lifeMaster,
+      c.bodyMaster,
+      ...c.palaces.flatMap((p) => [
+        p.name,
+        p.sixtyCycle,
+        p.changSheng,
+        p.boShi,
+        ...[...p.majorStars, ...p.minorStars, ...p.adjectiveStars].map(
+          (s) => s.name
+        ),
+      ]),
+    ].join("")
+  }
+  if (subject.system === "bazi") {
+    const pillars = KINDS.map((k) => subject.chart.pillars[k])
+    return [
+      ...common,
+      "元男 元女 日主 同类 异类 合计 胎元 胎息 命宫 身宫",
+      subject.chart.time.lunar,
+      ...Object.values(PILLAR_LABELS),
+      ...pillars.flatMap((p) => [
+        p.stem,
+        p.branch,
+        p.stemTenStar,
+        p.sound,
+        ...p.hideStems.flatMap((h) => [h.stem, h.tenStar]),
+      ]),
+      ...Object.values(ELEMENT_NAMES),
+      ...Object.values(subject.chart.elements.seasonalState),
+      subject.chart.elements.strength,
+      ...Object.values(subject.chart.extras),
+    ].join("")
+  }
+  return common.join("")
 }
 
 /** Canvas 不会自己触发字体加载，先把要用到的字体分片都取回来 */
@@ -419,12 +504,18 @@ async function loadFonts(text: string) {
 }
 
 /** 眉题、姓名、乾坤造与出生信息 */
-function drawHeader(p: Painter, chart: BaziChart) {
+function drawHeader(p: Painter, subject: PosterSubject) {
   const { palette } = p
+  const { chart } = subject
 
   p.font(11, HEADING, 600)
   p.spacing("0.2em")
-  p.text("FOUR PILLARS", PADDING, p.y + 6, palette.mutedForeground)
+  p.text(
+    SYSTEMS[subject.system].eyebrow.toUpperCase(),
+    PADDING,
+    p.y + 6,
+    palette.mutedForeground
+  )
   p.text("KISMET", WIDTH - PADDING, p.y + 6, palette.mutedForeground, "right")
   p.spacing("0px")
   p.y += 32
@@ -442,7 +533,11 @@ function drawHeader(p: Painter, chart: BaziChart) {
   p.y += 54
 
   const t = chart.time
-  const lines = [`阳历 ${t.input}    ${t.lunar} 属${t.zodiac}`]
+  const lunar =
+    subject.system === "ziwei"
+      ? `${subject.chart.lunar.text} ${subject.chart.lunar.hourBranch}时`
+      : t.lunar
+  const lines = [`阳历 ${t.input}    ${lunar} 属${t.zodiac}`]
   if (chart.options.useTrueSolarTime) {
     lines.push(
       `真太阳时 ${t.effective}（经度差 ${t.longitudeMinutes} 分，均时差 ${t.equationOfTimeMinutes} 分）`
@@ -475,7 +570,13 @@ function drawPillars(p: Painter, chart: BaziChart) {
   p.font(11, SANS, 600)
   p.spacing("0.15em")
   KINDS.forEach((k, i) => {
-    p.text(PILLAR_LABELS[k], centerOf(i), p.y + 6, palette.mutedForeground, "center")
+    p.text(
+      PILLAR_LABELS[k],
+      centerOf(i),
+      p.y + 6,
+      palette.mutedForeground,
+      "center"
+    )
   })
   p.spacing("0px")
   p.y += 30
@@ -495,8 +596,20 @@ function drawPillars(p: Painter, chart: BaziChart) {
   p.font(84, SERIF)
   KINDS.forEach((k, i) => {
     const pillar = chart.pillars[k]
-    p.text(pillar.stem, centerOf(i), p.y + 46, palette.element[pillar.stemElement], "center")
-    p.text(pillar.branch, centerOf(i), p.y + 142, palette.element[pillar.branchElement], "center")
+    p.text(
+      pillar.stem,
+      centerOf(i),
+      p.y + 46,
+      palette.element[pillar.stemElement],
+      "center"
+    )
+    p.text(
+      pillar.branch,
+      centerOf(i),
+      p.y + 142,
+      palette.element[pillar.branchElement],
+      "center"
+    )
   })
   p.y += 200
 
@@ -507,14 +620,25 @@ function drawPillars(p: Painter, chart: BaziChart) {
       if (!hide) return
       const x = centerOf(i) - p.width(`${hide.stem} ${hide.tenStar}`) / 2
       p.text(hide.stem, x, p.y + 8, palette.element[hide.element])
-      p.text(hide.tenStar, x + p.width(`${hide.stem} `), p.y + 8, palette.mutedForeground)
+      p.text(
+        hide.tenStar,
+        x + p.width(`${hide.stem} `),
+        p.y + 8,
+        palette.mutedForeground
+      )
     })
     p.y += 22
   }
 
   p.font(12, SANS)
   KINDS.forEach((k, i) => {
-    p.text(chart.pillars[k].sound, centerOf(i), p.y + 8, palette.mutedForeground, "center")
+    p.text(
+      chart.pillars[k].sound,
+      centerOf(i),
+      p.y + 8,
+      palette.mutedForeground,
+      "center"
+    )
   })
   p.y += 16
 }
@@ -534,17 +658,39 @@ function drawElements(p: Painter, chart: BaziChart) {
     p.font(16, SERIF)
     p.text(el, PADDING, y + 10, palette.element[el])
     p.rect(barX, y + 7, barWidth, 6, palette.muted)
-    p.rect(barX, y + 7, (e.scores[key] / max) * barWidth, 6, palette.element[el])
+    p.rect(
+      barX,
+      y + 7,
+      (e.scores[key] / max) * barWidth,
+      6,
+      palette.element[el]
+    )
     p.font(13, SANS)
-    p.text(String(e.scores[key]), barX + barWidth + 44, y + 10, palette.foreground, "right")
+    p.text(
+      String(e.scores[key]),
+      barX + barWidth + 44,
+      y + 10,
+      palette.foreground,
+      "right"
+    )
     p.font(12, SANS)
-    p.text(e.seasonalState[key], barX + barWidth + 58, y + 10, palette.mutedForeground)
+    p.text(
+      e.seasonalState[key],
+      barX + barWidth + 58,
+      y + 10,
+      palette.mutedForeground
+    )
   })
 
   const rightX = PADDING + 380
   const stemColor = palette.element[chart.dayStemElement]
   let x = rightX
-  const piece = (content: string, color: string, size: number, family: string) => {
+  const piece = (
+    content: string,
+    color: string,
+    size: number,
+    family: string
+  ) => {
     p.font(size, family)
     p.text(content, x, top + 10, color)
     x += p.width(content)
@@ -580,6 +726,206 @@ function drawElements(p: Painter, chart: BaziChart) {
   p.y = top + 5 * 26
 }
 
+/** 十二宫格的尺寸：四列等宽，四行等高，中央四格合并 */
+const GRID_CELL = CONTENT / 4
+const GRID_ROW = 150
+
+/** 十二宫在网格里的列与行：巳午未申一行、寅丑子亥一行 */
+const PALACE_CELLS: ReadonlyArray<readonly [string, number, number]> = [
+  ["巳", 0, 0],
+  ["午", 1, 0],
+  ["未", 2, 0],
+  ["申", 3, 0],
+  ["辰", 0, 1],
+  ["酉", 3, 1],
+  ["卯", 0, 2],
+  ["戌", 3, 2],
+  ["寅", 0, 3],
+  ["丑", 1, 3],
+  ["子", 2, 3],
+  ["亥", 3, 3],
+]
+
+/** 一行星曜，每颗后面跟小字的庙陷与四化，超宽换行，返回画完后的 y */
+function drawStarRow(
+  p: Painter,
+  stars: ZiweiStar[],
+  x: number,
+  y: number,
+  maxWidth: number,
+  size: number,
+  family: string
+): number {
+  if (stars.length === 0) return y
+  const { palette } = p
+  const lineHeight = size + 6
+  let cx = x
+  let cy = y
+  for (const star of stars) {
+    p.font(size, family)
+    const nameWidth = p.width(star.name)
+    p.font(9, SANS, 600)
+    const tailWidth = p.width((star.brightness ?? "") + (star.mutation ?? ""))
+    if (cx > x && cx + nameWidth + tailWidth > x + maxWidth) {
+      cx = x
+      cy += lineHeight
+    }
+    p.font(size, family)
+    p.text(star.name, cx, cy + lineHeight / 2, palette.foreground)
+    cx += nameWidth + 1
+    if (star.brightness) {
+      p.font(9, SANS)
+      p.text(
+        star.brightness,
+        cx,
+        cy + lineHeight / 2 - 3,
+        palette.mutedForeground
+      )
+      cx += p.width(star.brightness)
+    }
+    if (star.mutation) {
+      p.font(9, SANS, 600)
+      p.text(
+        star.mutation,
+        cx,
+        cy + lineHeight / 2 + 4,
+        mutationColor(palette, star.mutation)
+      )
+      cx += p.width(star.mutation)
+    }
+    cx += 6
+  }
+  return cy + lineHeight + 2
+}
+
+/** 一宫：正曜大字、辅佐煞中字、杂曜小字折行，底部宫名干支与大限 */
+function drawPalaceCell(p: Painter, palace: ZiweiPalace, x: number, y: number) {
+  const { palette } = p
+  const inner = x + 8
+  const width = GRID_CELL - 16
+  let cy = y + 8
+
+  cy = drawStarRow(p, palace.majorStars, inner, cy, width, 17, SERIF)
+  if (palace.majorStars.length === 0) {
+    p.font(11, SANS)
+    p.text("借对宫", inner, cy + 10, palette.mutedForeground)
+    cy += 22
+  }
+  cy = drawStarRow(p, palace.minorStars, inner, cy, width, 12, SANS)
+
+  p.font(9, SANS)
+  const adjectives = palace.adjectiveStars.map((s) => s.name).join(" ")
+  for (const line of p.wrap(adjectives, width, 3)) {
+    p.text(line, inner, cy + 6, palette.mutedForeground)
+    cy += 13
+  }
+
+  const bottom = y + GRID_ROW - 8
+  p.font(9, SANS)
+  p.text(
+    `${palace.decade.startAge}-${palace.decade.endAge}  ${palace.changSheng}  ${palace.boShi}`,
+    inner,
+    bottom - 22,
+    palette.mutedForeground
+  )
+  p.font(11, SANS, 600)
+  p.text(
+    palace.name + (palace.isBodyPalace ? " 身" : ""),
+    inner,
+    bottom - 6,
+    palette.foreground
+  )
+  p.font(12, SERIF)
+  p.text(
+    palace.sixtyCycle,
+    x + GRID_CELL - 8,
+    bottom - 6,
+    palette.foreground,
+    "right"
+  )
+}
+
+/** 中央四格：阴阳顺逆、命身宫、五行局、命主身主、生年四化 */
+function drawGridCenter(p: Painter, chart: ZiweiChart, x: number, y: number) {
+  const { palette } = p
+  const centerX = x + GRID_CELL
+  let cy = y + GRID_ROW - 70
+  const line = (
+    content: string,
+    size: number,
+    family: string,
+    color: string
+  ) => {
+    p.font(size, family)
+    p.text(content, centerX, cy, color, "center")
+    cy += size + 14
+  }
+  line(
+    `${chart.yang ? "阳" : "阴"}${chart.gender === "male" ? "男" : "女"}  大限${chart.forward ? "顺" : "逆"}行`,
+    13,
+    SANS,
+    palette.mutedForeground
+  )
+  line(
+    `命宫 ${chart.lifePalace}    身宫 ${chart.bodyPalace}`,
+    15,
+    SANS,
+    palette.foreground
+  )
+  line(chart.bureau.name, 24, SERIF, palette.element[chart.bureau.element])
+  line(
+    `命主 ${chart.lifeMaster}    身主 ${chart.bodyMaster}`,
+    13,
+    SANS,
+    palette.foreground
+  )
+
+  // 生年四化：星名常规、化曜着色，整行居中
+  p.font(13, SANS)
+  const parts = chart.mutations.map(
+    (m) => [m.star, `化${m.mutation}`, m.mutation] as const
+  )
+  const total = parts.reduce(
+    (sum, [star, tail]) => sum + p.width(star + tail) + 10,
+    -10
+  )
+  let cx = centerX - total / 2
+  for (const [star, tail, mutation] of parts) {
+    p.font(13, SANS)
+    p.text(star, cx, cy, palette.foreground)
+    cx += p.width(star)
+    p.font(13, SANS, 600)
+    p.text(tail, cx, cy, mutationColor(palette, mutation))
+    cx += p.width(tail) + 10
+  }
+}
+
+/** 十二宫格：外框、格线、十二宫与中央信息 */
+function drawPalaces(p: Painter, chart: ZiweiChart) {
+  const { palette } = p
+  const top = p.y
+  for (let i = 0; i <= 4; i++) {
+    p.rect(PADDING, top + i * GRID_ROW, CONTENT, 1, palette.border)
+    p.rect(PADDING + i * GRID_CELL, top, 1, GRID_ROW * 4 + 1, palette.border)
+  }
+  // 中央四格之间的格线抹掉，合成一块
+  p.rect(
+    PADDING + GRID_CELL + 1,
+    top + GRID_ROW + 1,
+    GRID_CELL * 2 - 1,
+    GRID_ROW * 2 - 1,
+    palette.background
+  )
+
+  for (const [branch, col, row] of PALACE_CELLS) {
+    const palace = chart.palaces.find((item) => item.branch === branch)
+    if (palace)
+      drawPalaceCell(p, palace, PADDING + col * GRID_CELL, top + row * GRID_ROW)
+  }
+  drawGridCenter(p, chart, PADDING + GRID_CELL, top + GRID_ROW)
+  p.y = top + GRID_ROW * 4 + 1
+}
+
 /** 表格：各列等宽，首行加粗，行间细线 */
 function drawTable(p: Painter, rows: Run[][][]) {
   const { palette } = p
@@ -602,7 +948,14 @@ function drawTable(p: Painter, rows: Run[][][]) {
     const top = p.y
     cells.forEach((cell, i) => {
       p.y = top + 6
-      p.lines(cell, PADDING + i * (columnWidth + gap), size, SANS, palette.foreground, lineHeight)
+      p.lines(
+        cell,
+        PADDING + i * (columnWidth + gap),
+        size,
+        SANS,
+        palette.foreground,
+        lineHeight
+      )
     })
     p.y = top + height + 12
     p.rule()
@@ -625,13 +978,29 @@ function drawAnalysis(p: Painter, blocks: Block[]) {
         if (previous) p.y += 14
         const size = block.level <= 2 ? 17 : 15
         const runs = block.runs.map((run) => ({ ...run, bold: true }))
-        p.paragraph(runs, PADDING, CONTENT, size, HEADING, palette.foreground, size + 10)
+        p.paragraph(
+          runs,
+          PADDING,
+          CONTENT,
+          size,
+          HEADING,
+          palette.foreground,
+          size + 10
+        )
         p.y += 6
         break
       }
       case "paragraph":
         if (previous?.kind === "item") p.y += 8
-        p.paragraph(block.runs, PADDING, CONTENT, BODY_SIZE, SANS, palette.foreground, BODY_LINE)
+        p.paragraph(
+          block.runs,
+          PADDING,
+          CONTENT,
+          BODY_SIZE,
+          SANS,
+          palette.foreground,
+          BODY_LINE
+        )
         p.y += 10
         break
       case "item": {
@@ -640,17 +1009,38 @@ function drawAnalysis(p: Painter, blocks: Block[]) {
         if (block.marker) {
           p.font(13, SANS)
           textX = indent + Math.max(18, p.width(block.marker) + 8)
-          p.text(block.marker, indent, p.y + BODY_LINE / 2, palette.mutedForeground)
+          p.text(
+            block.marker,
+            indent,
+            p.y + BODY_LINE / 2,
+            palette.mutedForeground
+          )
         } else {
           p.circle(indent + 5, p.y + BODY_LINE / 2, 2, palette.mutedForeground)
         }
-        p.paragraph(block.runs, textX, CONTENT - (textX - PADDING), BODY_SIZE, SANS, palette.foreground, BODY_LINE)
+        p.paragraph(
+          block.runs,
+          textX,
+          CONTENT - (textX - PADDING),
+          BODY_SIZE,
+          SANS,
+          palette.foreground,
+          BODY_LINE
+        )
         p.y += 4
         break
       }
       case "quote": {
         const top = p.y
-        p.paragraph(block.runs, PADDING + 14, CONTENT - 14, BODY_SIZE, SANS, palette.mutedForeground, BODY_LINE)
+        p.paragraph(
+          block.runs,
+          PADDING + 14,
+          CONTENT - 14,
+          BODY_SIZE,
+          SANS,
+          palette.mutedForeground,
+          BODY_LINE
+        )
         p.rect(PADDING, top + 2, 2, p.y - top - 4, palette.border)
         p.y += 10
         break
@@ -670,7 +1060,13 @@ function drawAnalysis(p: Painter, blocks: Block[]) {
 }
 
 /** 二维码始终黑白，扫码稳定 */
-function drawQr(p: Painter, content: string, x: number, y: number, size: number) {
+function drawQr(
+  p: Painter,
+  content: string,
+  x: number,
+  y: number,
+  size: number
+) {
   const qr = encode(content, { border: 0, ecc: "M" })
   const pad = 6
   const cell = (size - pad * 2) / qr.size
@@ -678,7 +1074,13 @@ function drawQr(p: Painter, content: string, x: number, y: number, size: number)
   qr.data.forEach((row, r) => {
     row.forEach((dark, c) => {
       if (dark) {
-        p.rect(x + pad + c * cell, y + pad + r * cell, cell + 0.2, cell + 0.2, "#000")
+        p.rect(
+          x + pad + c * cell,
+          y + pad + r * cell,
+          cell + 0.2,
+          cell + 0.2,
+          "#000"
+        )
       }
     })
   })
@@ -709,7 +1111,13 @@ function drawFooter(p: Painter, shareUrl?: string) {
   p.text("遇见", WIDTH - PADDING, brandY - 9, palette.foreground, "right")
   p.font(10, HEADING, 600)
   p.spacing("0.25em")
-  p.text("KISMET", WIDTH - PADDING, brandY + 13, palette.mutedForeground, "right")
+  p.text(
+    "KISMET",
+    WIDTH - PADDING,
+    brandY + 13,
+    palette.mutedForeground,
+    "right"
+  )
   p.spacing("0px")
 
   p.y = top + height
@@ -718,16 +1126,20 @@ function drawFooter(p: Painter, shareUrl?: string) {
 /** 从头到尾画一遍，返回总高度；dry 模式下只量尺寸 */
 function paint(
   p: Painter,
-  chart: BaziChart,
+  subject: PosterSubject,
   blocks: Block[],
   shareUrl?: string
 ): number {
   p.y = PADDING
-  drawHeader(p, chart)
+  drawHeader(p, subject)
   p.section()
-  drawPillars(p, chart)
-  p.section()
-  drawElements(p, chart)
+  if (subject.system === "bazi") {
+    drawPillars(p, subject.chart)
+    p.section()
+    drawElements(p, subject.chart)
+  } else {
+    drawPalaces(p, subject.chart)
+  }
   if (blocks.length > 0) {
     p.section()
     drawAnalysis(p, blocks)
@@ -748,17 +1160,17 @@ function toBlob(canvas: HTMLCanvasElement): Promise<Blob> {
 
 /** 把命盘与解读画成长图，返回 PNG */
 export async function renderPoster(
-  chart: BaziChart,
+  subject: PosterSubject,
   options: PosterOptions = {}
 ): Promise<Blob> {
   const analysis = options.analysis?.trim() || undefined
   const blocks = analysis ? parseMarkdown(analysis) : []
-  await loadFonts(textOf(chart, analysis, options.shareUrl))
+  await loadFonts(textOf(subject, analysis, options.shareUrl))
   const palette = readPalette()
 
   const height = paint(
     new Painter(context(document.createElement("canvas")), palette, true),
-    chart,
+    subject,
     blocks,
     options.shareUrl
   )
@@ -773,6 +1185,6 @@ export async function renderPoster(
 
   const p = new Painter(ctx, palette, false)
   p.rect(0, 0, WIDTH, height, palette.background)
-  paint(p, chart, blocks, options.shareUrl)
+  paint(p, subject, blocks, options.shareUrl)
   return toBlob(canvas)
 }

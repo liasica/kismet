@@ -2,15 +2,17 @@
  * 命理解读：把排盘输入交给 Go 服务，服务端排盘、拼提示词并流式转发 DeepSeek 的回复
  */
 
-import type { PaipanInput, BaziOptions } from "@kismet/core"
+import type { PaipanInput } from "@kismet/core"
 
 import { API_BASE, readError } from "@/lib/api"
+import type { ReportOptions, System } from "@/lib/system"
 
-/** 解读请求：报告 id、排盘输入与选项，服务端据此排盘并存成报告，解读结束后正文写回同一份 */
+/** 解读请求：体系、报告 id、排盘输入与选项，服务端据此排盘并存成报告，解读结束后正文写回同一份 */
 export interface AnalysisRecord {
+  system: System
   reportId: string
   input: PaipanInput
-  options: BaziOptions
+  options: ReportOptions
 }
 
 /** OpenAI 兼容的流式片段，只取要用的字段 */
@@ -35,10 +37,14 @@ export async function streamAnalysis(
 ): Promise<void> {
   let res: Response
   try {
-    res = await fetch(`${API_BASE}/api/bazi/analyze`, {
+    res = await fetch(`${API_BASE}/api/${record.system}/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(record),
+      body: JSON.stringify({
+        reportId: record.reportId,
+        input: record.input,
+        options: record.options,
+      }),
       signal,
     })
   } catch (e) {

@@ -5,13 +5,15 @@ import remarkGfm from "remark-gfm"
 import { ChartView } from "@/components/chart-view"
 import { Separator } from "@/components/ui/separator"
 import { baziPaipan } from "@kismet/core"
-import type { BaziChart, PaipanInput, BaziOptions } from "@kismet/core"
+import type { BaziChart, BaziOptions, PaipanInput } from "@kismet/core"
 import { errorMessage } from "@/lib/api"
 import { formatSavedAt } from "@/lib/reports"
+import type { ReportOptions } from "@/lib/system"
 
 interface ReportViewProps {
   input: PaipanInput
-  options: BaziOptions
+  /** 服务端保存的报告只有八字会走到这里，紫微斗数的报告页在另外的页面呈现 */
+  options: ReportOptions
   /** 解读正文 Markdown，空即尚未解读 */
   analysis: string
   /** 报告最近一次更新的时间，ISO 字符串 */
@@ -30,7 +32,7 @@ export function ReportView({
     | { chart?: undefined; error: string }
   >(() => {
     try {
-      return { chart: baziPaipan(input, options) }
+      return { chart: baziPaipan(input, options as BaziOptions) }
     } catch (e) {
       return { error: errorMessage(e) }
     }
