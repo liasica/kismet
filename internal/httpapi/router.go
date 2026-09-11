@@ -104,9 +104,10 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 	})
 
-	mux.HandleFunc("GET /api/options", s.handleOptions)
-	mux.HandleFunc("POST /api/paipan", s.handlePaipan)
-	mux.HandleFunc("POST /api/analyze", s.handleAnalyze)
+	mux.HandleFunc("GET /api/bazi/options", s.handleBaziOptions)
+	mux.HandleFunc("POST /api/bazi/paipan", s.handleBaziPaipan)
+	mux.HandleFunc("POST /api/bazi/analyze", s.handleAnalyze)
+	mux.HandleFunc("POST /api/ziwei/paipan", s.handleZiweiPaipan)
 	mux.HandleFunc("GET /api/reports/{id}/share", s.handleGetShare)
 	mux.HandleFunc("POST /api/reports/{id}/share", s.handleCreateShare)
 	mux.HandleFunc("DELETE /api/reports/{id}/share", s.handleDeleteShare)
@@ -135,8 +136,8 @@ type strategyInfo struct {
 	Description string `json:"description"`
 }
 
-// handleOptions 选项的默认值与可用的五行评分策略，客户端不必硬编码一份
-func (s *Server) handleOptions(w http.ResponseWriter, _ *http.Request) {
+// handleBaziOptions 选项的默认值与可用的五行评分策略，客户端不必硬编码一份
+func (s *Server) handleBaziOptions(w http.ResponseWriter, _ *http.Request) {
 	strategies := bazi.ElementStrategies()
 	list := make([]strategyInfo, 0, len(strategies))
 	for _, item := range strategies {
@@ -149,11 +150,11 @@ func (s *Server) handleOptions(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-// handlePaipan 排盘
+// handleBaziPaipan 排盘
 //
 // `?format=text` 返回竖排文字，便于跟现有排盘工具肉眼对照
-func (s *Server) handlePaipan(w http.ResponseWriter, r *http.Request) {
-	input, options, err := parsePaipanRequest(r, s.store)
+func (s *Server) handleBaziPaipan(w http.ResponseWriter, r *http.Request) {
+	input, options, err := parseBaziPaipanRequest(r, s.store)
 	if err != nil {
 		writeError(w, err)
 		return

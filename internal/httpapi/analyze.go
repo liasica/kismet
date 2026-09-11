@@ -193,7 +193,7 @@ func parseAnalyzeRequest(r *http.Request) (cmd analyzeCommand, err error) {
 			return
 		}
 	}
-	cmd.Chart, err = resolveChart(*req.Input, req.Options)
+	cmd.Chart, err = resolveBaziChart(*req.Input, req.Options)
 	return
 }
 

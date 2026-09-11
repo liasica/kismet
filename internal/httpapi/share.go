@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/liasica/kismet/internal/bazi"
+	"github.com/liasica/kismet/internal/birth"
 	"github.com/liasica/kismet/internal/report"
 )
 
@@ -46,12 +46,14 @@ func infoOf(share report.Share) shareInfo {
 
 // shareRequest 开启分享或改密码
 //
-// 报告尚未保存时随请求带上排盘输入与选项；客户端本地有解读正文时也带上，以它为准写进报告
+// 报告尚未保存时随请求带上体系、排盘输入与选项；客户端本地有解读正文时也带上，以它为准写进报告。
+// system 缺省按八字，兼容早期客户端
 type shareRequest struct {
-	Password string             `json:"password"`
-	Input    *bazi.Input        `json:"input"`
-	Options  *bazi.OptionsPatch `json:"options"`
-	Analysis string             `json:"analysis"`
+	System   string          `json:"system"`
+	Password string          `json:"password"`
+	Input    *birth.Input    `json:"input"`
+	Options  json.RawMessage `json:"options"`
+	Analysis string          `json:"analysis"`
 }
 
 // unlockRequest 输入密码查看有密码的分享
@@ -59,9 +61,10 @@ type unlockRequest struct {
 	Password string `json:"password"`
 }
 
-// sharedReport 分享出去的报告内容
+// sharedReport 分享出去的报告内容，选项按体系原样透传
 type sharedReport struct {
-	Input     bazi.Input      `json:"input"`
+	System    string          `json:"system"`
+	Input     birth.Input     `json:"input"`
 	Options   json.RawMessage `json:"options"`
 	Analysis  string          `json:"analysis"`
 	CreatedAt time.Time       `json:"createdAt"`
@@ -77,6 +80,7 @@ type sharedResponse struct {
 func sharedOf(item report.Report) sharedResponse {
 	return sharedResponse{
 		Report: &sharedReport{
+			System:    item.System,
 			Input:     item.Input,
 			Options:   item.Options,
 			Analysis:  item.Analysis,
@@ -153,19 +157,12 @@ func (s *Server) handleCreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Input != nil {
-		var options bazi.Options
-		options, err = validateChart(*req.Input, req.Options)
-		if err != nil {
+		var options json.RawMessage
+		if options, err = validateForSystem(req.System, *req.Input, req.Options); err != nil {
 			writeError(w, err)
 			return
 		}
-		var rawOptions []byte
-		rawOptions, err = json.Marshal(options)
-		if err != nil {
-			writeError(w, err)
-			return
-		}
-		if err = s.reports.Upsert(id, report.SystemBazi, *req.Input, rawOptions); err != nil {
+		if err = s.reports.Upsert(id, systemOf(req.System), *req.Input, options); err != nil {
 			writeError(w, err)
 			return
 		}

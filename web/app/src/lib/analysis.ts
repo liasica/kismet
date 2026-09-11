@@ -35,7 +35,7 @@ export async function streamAnalysis(
 ): Promise<void> {
   let res: Response
   try {
-    res = await fetch(`${API_BASE}/api/analyze`, {
+    res = await fetch(`${API_BASE}/api/bazi/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(record),

@@ -15,7 +15,10 @@ import (
 	"time"
 
 	"github.com/liasica/kismet/internal/bazi"
+	"github.com/liasica/kismet/internal/birth"
 	"github.com/liasica/kismet/internal/region"
+	"github.com/liasica/kismet/internal/report"
+	"github.com/liasica/kismet/internal/ziwei"
 )
 
 // 请求体的大小上限，排盘请求只有几百字节
@@ -42,11 +45,11 @@ func notFound(format string, args ...any) apiError {
 	return apiError{status: http.StatusNotFound, message: fmt.Sprintf(format, args...)}
 }
 
-// paipanRequest 排盘请求体
+// birthRequest 排盘请求里的出生信息，各体系共用
 //
 // 出生地可以传 RegionCode 让服务端查经纬度，也可以直接传 Longitude。
 // 两者都给时以 RegionCode 为准
-type paipanRequest struct {
+type birthRequest struct {
 	Year   *int   `json:"year"`
 	Month  *int   `json:"month"`
 	Day    *int   `json:"day"`
@@ -60,8 +63,33 @@ type paipanRequest struct {
 	RegionCode string   `json:"regionCode"`
 	Longitude  *float64 `json:"longitude"`
 	Latitude   *float64 `json:"latitude"`
+}
 
-	Options bazi.OptionsPatch `json:"options"`
+// paipanRequest 排盘请求体：出生信息加该体系的选项，选项按体系再解析
+type paipanRequest struct {
+	birthRequest
+	Options json.RawMessage `json:"options"`
+}
+
+// decodeOptions 把原始 JSON 解成某个体系的选项补丁，没给或为 null 时返回 nil
+func decodeOptions[T any](raw json.RawMessage) (*T, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var patch T
+	if err := json.Unmarshal(raw, &patch); err != nil {
+		return nil, badRequest("options 不是合法的选项对象")
+	}
+	return &patch, nil
+}
+
+// marshalOptions 把合并后的选项序列化，存进报告
+func marshalOptions(value any) (json.RawMessage, error) {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	return raw, nil
 }
 
 // decodeJSON 读请求体并解析 JSON，limit 是允许的最大字节数
@@ -85,7 +113,7 @@ func requireInt(value *int, field string) (int, error) {
 }
 
 // checkInput 校验排盘输入：各时间分量的范围、日期是否真实存在、性别与经纬度
-func checkInput(input bazi.Input) error {
+func checkInput(input birth.Input) error {
 	ranges := []struct {
 		value    int
 		field    string
@@ -116,110 +144,10 @@ func checkInput(input bazi.Input) error {
 	return checkFloatRange(input.Latitude, "latitude", -90, 90)
 }
 
-// resolveChartOptions 校验选项并合并默认值，再确认真太阳时有经度可用；patch 为 nil 即全用默认值
-func resolveChartOptions(input bazi.Input, patch *bazi.OptionsPatch) (bazi.Options, error) {
-	options := bazi.DefaultOptions
-	if patch != nil {
-		if err := checkOptions(*patch); err != nil {
-			return bazi.Options{}, err
-		}
-		options = bazi.ResolveOptions(*patch)
-	}
-	if options.UseTrueSolarTime && input.Longitude == nil {
-		return bazi.Options{}, badRequest("开启真太阳时需要提供 regionCode 或 longitude")
-	}
-	return options, nil
-}
-
-// resolveChart 校验排盘输入与选项并排盘
-func resolveChart(input bazi.Input, patch *bazi.OptionsPatch) (bazi.Chart, error) {
-	if err := checkInput(input); err != nil {
-		return bazi.Chart{}, err
-	}
-	options, err := resolveChartOptions(input, patch)
-	if err != nil {
-		return bazi.Chart{}, err
-	}
-
-	var chart bazi.Chart
-	if chart, err = bazi.Paipan(input, options); err != nil {
-		return bazi.Chart{}, badRequest("排盘失败：%s", err.Error())
-	}
-	return chart, nil
-}
-
-// validateChart 校验一份要保存的排盘输入与选项，并实际排一次盘确认能算出来
-func validateChart(input bazi.Input, patch *bazi.OptionsPatch) (bazi.Options, error) {
-	chart, err := resolveChart(input, patch)
-	if err != nil {
-		return bazi.Options{}, err
-	}
-	return chart.Options, nil
-}
-
-// checkFloatRange 校验可选浮点数的范围
-func checkFloatRange(value *float64, field string, min, max float64) error {
-	if value == nil {
-		return nil
-	}
-	if *value < min || *value > max {
-		return badRequest("%s 应在 %v 到 %v 之间，收到 %v", field, min, max, *value)
-	}
-	return nil
-}
-
-// requireRealDate 公历日期是否真实存在，挡掉 2 月 30 日这类
-func requireRealDate(year, month, day int) error {
-	t := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
-	if t.Year() != year || int(t.Month()) != month || t.Day() != day {
-		return badRequest("公历 %d 年 %d 月没有 %d 日", year, month, day)
-	}
-	return nil
-}
-
-// requireGender 校验性别
-func requireGender(value string) (bazi.Gender, error) {
-	switch bazi.Gender(value) {
-	case bazi.GenderMale:
-		return bazi.GenderMale, nil
-	case bazi.GenderFemale:
-		return bazi.GenderFemale, nil
-	}
-	return "", badRequest(`gender 应为 "male" 或 "female"`)
-}
-
-// checkOptions 校验选项里有范围要求的那几项
-func checkOptions(patch bazi.OptionsPatch) error {
-	if patch.QiYunPrecision != nil {
-		switch *patch.QiYunPrecision {
-		case bazi.QiYunByDay, bazi.QiYunByHour:
-		default:
-			return badRequest(`options.qiYunPrecision 应为 "day" 或 "hour"`)
-		}
-	}
-	if patch.MaxAge != nil && (*patch.MaxAge < 1 || *patch.MaxAge > 200) {
-		return badRequest("options.maxAge 应在 1 到 200 之间，收到 %d", *patch.MaxAge)
-	}
-	if patch.ElementStrategy != nil {
-		if _, err := bazi.GetElementStrategy(*patch.ElementStrategy); err != nil {
-			return badRequest("%s", err.Error())
-		}
-	}
-	return nil
-}
-
-// parsePaipanRequest 解析并校验排盘请求
-func parsePaipanRequest(
-	r *http.Request,
-	store *region.Store,
-) (input bazi.Input, options bazi.Options, err error) {
-	var req paipanRequest
-	if err = decodeJSON(r, maxRequestBytes, &req); err != nil {
-		return
-	}
-
-	input = bazi.Input{
-		Gender:    bazi.Gender(req.Gender),
+// parseBirth 由请求字段组装排盘输入并校验，带区划代码时查经纬度与地名
+func parseBirth(req birthRequest, store *region.Store) (input birth.Input, err error) {
+	input = birth.Input{
+		Gender:    birth.Gender(req.Gender),
 		Name:      strings.TrimSpace(req.Name),
 		Location:  strings.TrimSpace(req.Location),
 		Longitude: req.Longitude,
@@ -260,9 +188,120 @@ func parsePaipanRequest(
 		input.Latitude = &latitude
 		input.Location = store.FullName(code)
 	}
-
-	options, err = resolveChartOptions(input, &req.Options)
 	return
+}
+
+// parseBaziPaipanRequest 解析并校验八字排盘请求
+func parseBaziPaipanRequest(
+	r *http.Request,
+	store *region.Store,
+) (input birth.Input, options bazi.Options, err error) {
+	var req paipanRequest
+	if err = decodeJSON(r, maxRequestBytes, &req); err != nil {
+		return
+	}
+	if input, err = parseBirth(req.birthRequest, store); err != nil {
+		return
+	}
+
+	var patch *bazi.OptionsPatch
+	if patch, err = decodeOptions[bazi.OptionsPatch](req.Options); err != nil {
+		return
+	}
+	options, err = resolveBaziOptions(input, patch)
+	return
+}
+
+// resolveBaziOptions 校验选项并合并默认值，再确认真太阳时有经度可用；patch 为 nil 即全用默认值
+func resolveBaziOptions(input birth.Input, patch *bazi.OptionsPatch) (bazi.Options, error) {
+	options := bazi.DefaultOptions
+	if patch != nil {
+		if err := checkBaziOptions(*patch); err != nil {
+			return bazi.Options{}, err
+		}
+		options = bazi.ResolveOptions(*patch)
+	}
+	if options.UseTrueSolarTime && input.Longitude == nil {
+		return bazi.Options{}, badRequest("开启真太阳时需要提供 regionCode 或 longitude")
+	}
+	return options, nil
+}
+
+// resolveBaziChart 校验排盘输入与选项并排盘
+func resolveBaziChart(input birth.Input, patch *bazi.OptionsPatch) (bazi.Chart, error) {
+	if err := checkInput(input); err != nil {
+		return bazi.Chart{}, err
+	}
+	options, err := resolveBaziOptions(input, patch)
+	if err != nil {
+		return bazi.Chart{}, err
+	}
+
+	var chart bazi.Chart
+	if chart, err = bazi.Paipan(input, options); err != nil {
+		return bazi.Chart{}, badRequest("排盘失败：%s", err.Error())
+	}
+	return chart, nil
+}
+
+// validateBaziChart 校验一份要保存的排盘输入与选项，并实际排一次盘确认能算出来
+func validateBaziChart(input birth.Input, patch *bazi.OptionsPatch) (bazi.Options, error) {
+	chart, err := resolveBaziChart(input, patch)
+	if err != nil {
+		return bazi.Options{}, err
+	}
+	return chart.Options, nil
+}
+
+// checkFloatRange 校验可选浮点数的范围
+func checkFloatRange(value *float64, field string, min, max float64) error {
+	if value == nil {
+		return nil
+	}
+	if *value < min || *value > max {
+		return badRequest("%s 应在 %v 到 %v 之间，收到 %v", field, min, max, *value)
+	}
+	return nil
+}
+
+// requireRealDate 公历日期是否真实存在，挡掉 2 月 30 日这类
+func requireRealDate(year, month, day int) error {
+	t := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
+	if t.Year() != year || int(t.Month()) != month || t.Day() != day {
+		return badRequest("公历 %d 年 %d 月没有 %d 日", year, month, day)
+	}
+	return nil
+}
+
+// requireGender 校验性别
+func requireGender(value string) (birth.Gender, error) {
+	switch birth.Gender(value) {
+	case birth.GenderMale:
+		return birth.GenderMale, nil
+	case birth.GenderFemale:
+		return birth.GenderFemale, nil
+	}
+	return "", badRequest(`gender 应为 "male" 或 "female"`)
+}
+
+// checkBaziOptions 校验选项里有范围要求的那几项
+func checkBaziOptions(patch bazi.OptionsPatch) error {
+	if patch.QiYunPrecision != nil {
+		switch *patch.QiYunPrecision {
+		case bazi.QiYunByDay, bazi.QiYunByHour:
+		default:
+			return badRequest(`options.qiYunPrecision 应为 "day" 或 "hour"`)
+		}
+	}
+	if patch.MaxAge != nil && (*patch.MaxAge < 1 || *patch.MaxAge > 200) {
+		return badRequest("options.maxAge 应在 1 到 200 之间，收到 %d", *patch.MaxAge)
+	}
+	if patch.ElementStrategy != nil {
+		if _, err := bazi.GetElementStrategy(*patch.ElementStrategy); err != nil {
+			return badRequest("%s", err.Error())
+		}
+	}
+	return nil
 }
 
 // requireRegionCode 校验路径里的区划代码
@@ -280,4 +319,39 @@ func statusOf(err error) (int, string) {
 		return e.status, e.message
 	}
 	return http.StatusInternalServerError, "服务内部错误"
+}
+
+// systemOf 请求里的体系名，缺省按八字
+func systemOf(system string) string {
+	if system == "" {
+		return report.SystemBazi
+	}
+	return system
+}
+
+// validateForSystem 按体系校验一份要保存的输入与选项，返回合并默认值后的选项 JSON
+func validateForSystem(system string, input birth.Input, raw json.RawMessage) (json.RawMessage, error) {
+	switch systemOf(system) {
+	case report.SystemBazi:
+		patch, err := decodeOptions[bazi.OptionsPatch](raw)
+		if err != nil {
+			return nil, err
+		}
+		var options bazi.Options
+		if options, err = validateBaziChart(input, patch); err != nil {
+			return nil, err
+		}
+		return marshalOptions(options)
+	case report.SystemZiwei:
+		patch, err := decodeOptions[ziwei.OptionsPatch](raw)
+		if err != nil {
+			return nil, err
+		}
+		var options ziwei.Options
+		if options, err = validateZiweiChart(input, patch); err != nil {
+			return nil, err
+		}
+		return marshalOptions(options)
+	}
+	return nil, badRequest(`system 应为 "bazi" 或 "ziwei"`)
 }

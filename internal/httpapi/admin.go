@@ -10,7 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/liasica/kismet/internal/bazi"
+	"github.com/liasica/kismet/internal/birth"
 	"github.com/liasica/kismet/internal/report"
 )
 
@@ -29,10 +29,11 @@ const (
 
 // adminReportSummary 列表里的一条报告，不带解读正文
 type adminReportSummary struct {
-	ID        string     `json:"id"`
-	CreatedAt time.Time  `json:"createdAt"`
-	UpdatedAt time.Time  `json:"updatedAt"`
-	Input     bazi.Input `json:"input"`
+	ID        string      `json:"id"`
+	CreatedAt time.Time   `json:"createdAt"`
+	UpdatedAt time.Time   `json:"updatedAt"`
+	System    string      `json:"system"`
+	Input     birth.Input `json:"input"`
 	// Model 生成解读的模型名，尚未解读时为空
 	Model string `json:"model,omitempty"`
 	// AnalysisRunes 解读正文的字符数，0 即尚未解读
@@ -40,7 +41,7 @@ type adminReportSummary struct {
 	Share         *shareInfo `json:"share,omitempty"`
 }
 
-// adminReport 单份报告的全部内容
+// adminReport 单份报告的全部内容，选项按体系原样透传
 type adminReport struct {
 	adminReportSummary
 	Options  json.RawMessage `json:"options"`
@@ -58,6 +59,7 @@ func summaryOf(item report.Report) adminReportSummary {
 		ID:            item.ID,
 		CreatedAt:     item.CreatedAt,
 		UpdatedAt:     item.UpdatedAt,
+		System:        item.System,
 		Input:         item.Input,
 		Model:         item.Model,
 		AnalysisRunes: utf8.RuneCountInString(item.Analysis),
