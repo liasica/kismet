@@ -1,6 +1,10 @@
 package bazi
 
-import "github.com/6tail/tyme4go/tyme"
+import (
+	"github.com/6tail/tyme4go/tyme"
+
+	"github.com/liasica/kismet/internal/birth"
+)
 
 // DefaultOptions 选项默认值
 //
@@ -126,14 +130,7 @@ func Paipan(input Input, options Options) (Chart, error) {
 	timeInfo := corrected.Info
 	timeInfo.Zodiac = four.Year.GetEarthBranch().GetZodiac().GetName()
 
-	var location *Location
-	if input.Location != "" || input.Longitude != nil || input.Latitude != nil {
-		location = &Location{
-			Name:      input.Location,
-			Longitude: input.Longitude,
-			Latitude:  input.Latitude,
-		}
-	}
+	location := birth.LocationOf(input)
 
 	return Chart{
 		Name:           input.Name,

@@ -1,4 +1,4 @@
-package bazi
+package birth
 
 import "math"
 

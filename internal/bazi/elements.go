@@ -2,6 +2,7 @@ package bazi
 
 import (
 	"fmt"
+	"math"
 	"slices"
 
 	"github.com/6tail/tyme4go/tyme"
@@ -57,6 +58,11 @@ var DefaultWeights = WeightConfig{
 // elementIndex 五行在 tyme.ElementNames 里的序号，木 0 火 1 土 2 金 3 水 4
 func elementIndex(name string) int {
 	return slices.Index(tyme.ElementNames, name)
+}
+
+// round2 保留两位小数，避免浮点尾数进到结果里
+func round2(v float64) float64 {
+	return math.Round(v*100) / 100
 }
 
 // seasonalStates 月令主导的旺相休囚死

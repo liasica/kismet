@@ -165,6 +165,14 @@ func fortuneYearOf(ctx FortuneContext, year, age int, forward bool) (FortuneYear
 	}, nil
 }
 
+// termPointOf 把节气对象转换成 TermPoint
+func termPointOf(term tyme.SolarTerm) TermPoint {
+	return TermPoint{
+		Name: term.GetName(),
+		Time: FormatTime(term.GetJulianDay().GetSolarTime()),
+	}
+}
+
 // BuildFortune 推起运与大运
 func BuildFortune(ctx FortuneContext) (QiYun, []DecadeFortuneStep, error) {
 	forward := isForward(ctx.YearPillar, ctx.Gender)
