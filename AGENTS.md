@@ -1,6 +1,6 @@
 # 遇见（Kismet）
 
-中国传统命理排盘与解读的 Web 应用。用户提交生辰等信息，应用在浏览器本地排出命盘，再交给 DeepSeek 做文字解读。命理体系以八字（四柱）为主，紫微斗数待实现。
+中国传统命理排盘与解读的 Web 应用。用户提交生辰等信息，应用在浏览器本地排出命盘，再交给 DeepSeek 做文字解读。命理体系有八字（四柱）与紫微斗数两套，紫微取中州派口径。
 
 主工程是 Go：一个二进制内嵌前端构建产物与区划数据，启动即可访问页面与接口。
 
@@ -8,7 +8,7 @@
 
 | 项 | 选型 | 说明 |
 | --- | --- | --- |
-| 服务 | Go 1.27，标准库 `net/http` | 静态资源、排盘接口、DeepSeek 转发、报告与分享 |
+| 服务 | Go 1.27，标准库 `net/http` | 静态资源、八字排盘接口、紫微排盘引擎、DeepSeek 转发、报告与分享 |
 | 存储 | bbolt | 单文件键值库，存解读报告与分享设置，路径由 `DB_PATH` 指定 |
 | 构建 | Vite 8 + React 19 + TypeScript 6 | SPA，无 SSR |
 | 路由 | react-router 8 | 声明式 `BrowserRouter`，页面在 `web/app/src/pages/`：`/` 首页卡片、`/bazi` 表单、`/bazi/report` 排盘与解读、`/saved` 收藏、`/s/:hash` 分享页、`/admin` 后台的报告列表、`/admin/reports/:id` 后台的报告详情 |
@@ -24,23 +24,28 @@
 ## 目录结构
 
 ```
-main.go            入口，go:embed 内嵌 data/region 与 web/app/dist
-internal/bazi/     八字排盘的 Go 实现
-internal/region/   行政区划查询，从 fs.FS 读数据
-internal/report/   解读报告的持久化与分享：bbolt 存储、分享哈希、密码派生
-internal/httpapi/  HTTP 接口：排盘、区划、DeepSeek 解读转发、报告分享、SPA 静态资源
-data/region/       行政区划 JSON，Go 与 TypeScript 读同一份
-data/fixtures/     黄金基准 charts.json，约束两份排盘实现一致
-web/               前端 pnpm 工作区
-web/core/          排盘引擎与区划查询，TypeScript，纯计算，浏览器与命令行直接引
-web/app/           React SPA，本地排盘，只有命理解读调后端
+main.go                入口，go:embed 内嵌 data/region 与 web/app/dist
+internal/bazi/         八字排盘的 Go 实现
+internal/birth/        共用的出生信息与时间校正
+internal/ziwei/        紫微斗数排盘的 Go 实现
+internal/fixturetest/  黄金基准的加载与逐字段比对，八字与紫微共用
+internal/region/       行政区划查询，从 fs.FS 读数据
+internal/report/       解读报告的持久化与分享：bbolt 存储、分享哈希、密码派生
+internal/httpapi/      HTTP 接口：排盘、区划、DeepSeek 解读转发、报告分享、SPA 静态资源
+data/region/           行政区划 JSON，Go 与 TypeScript 读同一份
+data/fixtures/         黄金基准 bazi-charts.json 与 ziwei-charts.json，约束两份排盘实现一致
+web/                   前端 pnpm 工作区
+web/core/              排盘引擎与区划查询，TypeScript，纯计算，浏览器与命令行直接引
+web/core/src/birth/    共用的出生信息与时间校正
+web/core/src/ziwei/    紫微斗数排盘
+web/app/               React SPA，本地排盘，只有命理解读调后端
 ```
 
-排盘有两份实现（TS 与 Go），靠 `data/fixtures/charts.json` 逐字段约束一致。改动任何一侧的排盘逻辑后必须执行 `make fixtures`（先由 TS 重新生成基准，再由 Go 侧比对）。
+排盘有两份实现（TS 与 Go），两套体系各一份基准，靠 `data/fixtures/bazi-charts.json` 与 `data/fixtures/ziwei-charts.json` 逐字段约束一致。改动任何一侧的排盘逻辑后必须执行 `make fixtures`（先由 TS 重新生成基准，再由 Go 侧比对）。
 
 前端把仓库根的 `data/` 当作工作区外的资源引用：TS 侧用相对路径 `../../../../data/region/...` import，Vite 开发服务器在 `web/app/vite.config.ts` 的 `server.fs.allow` 里放行了该目录。
 
-Web 端的路径别名 `@/` 指向 `web/app/src/`，在 `web/app/vite.config.ts` 与 `web/app/tsconfig.app.json` 两处声明，改动需同步。跨包引用走包名 `@kismet/core` 与 `@kismet/core/region`，不要用相对路径穿透到别的包。
+Web 端的路径别名 `@/` 指向 `web/app/src/`，在 `web/app/vite.config.ts` 与 `web/app/tsconfig.app.json` 两处声明，改动需同步。跨包引用走包名 `@kismet/core` 与 `@kismet/core/region`，不要用相对路径穿透到别的包；根入口导出共用层与两套命理体系，对外名字按体系加前缀（`bazi` 与 `ziwei`），共用的不加前缀。
 
 字体细节：思源宋体走 `@fontsource-variable/noto-serif-sc`，按 unicode-range 切成 101 个分片，浏览器只取命中的片，单片约 60~100 KB。中文挂在 `--font-sans` 与 `--font-heading` 的回退位，靠拉丁字体不含汉字字形自然回落；整段走宋体用 `--font-serif`。Oxanium 的 `@font-face` 在 `web/app/src/index.css` 里自行声明而不 import 字体包的 CSS，用 `ascent-override`／`descent-override` 把上伸／下伸定为 86%／14%，让回落到宋体的汉字与拉丁大写在行框里居中；升级字体包版本时同步其 `unicode-range`。生僻字（卦名、神煞）分散在多个分片，字符面铺开时首屏字体流量可达 1 MB 量级。
 
@@ -54,7 +59,7 @@ make dev-web    # 只跑 Vite 开发服务器 http://localhost:36578，/api 代�
 make dev-server # 只跑 Go 服务 http://localhost:36579
 make test       # TypeScript 与 Go 的全部测试
 make lint       # ESLint、tsc、go vet
-make fixtures   # 重新生成黄金基准并用 Go 侧比对
+make fixtures   # 重新生成两套跨语言黄金基准并用 Go 侧比对
 ```
 
 `web/app/dist/` 只提交占位的 `.gitkeep`，未构建时二进制照常启动，页面提示先执行 `make web`。
@@ -119,3 +124,5 @@ make fixtures   # 重新生成黄金基准并用 Go 侧比对
 - 排盘计算与界面渲染分离：算法放 `web/core`，保持纯函数、可单独调用；界面不写任何命理算法
 - 序列化结构里的 JSON key 一律英文，中文只出现在值与界面上，Go 与移动端解析中文 key 很别扭
 - 真太阳时、时区、闰月这类边界情况在算法层显式处理，不留给调用方
+- 紫微斗数按中州派口径，规则与差异记在 `web/core/README.md`，不做流派开关
+- 紫微的虚岁与流年以农历年为界，八字以立春为界，两边不要混用
