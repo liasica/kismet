@@ -2,7 +2,8 @@
 //
 // 每一次命理解读的排盘输入、选项与解读正文都存进本地的 bbolt 文件。报告由客户端
 // 生成的 128 位随机 id 标识，持有 id 即可管理这份报告的分享；开启分享后得到一个
-// 短哈希，持有哈希的人经 /s/{hash} 查看，分享可以设密码
+// 短哈希，持有哈希的人经 /s/{hash} 查看，分享可以设密码。
+// 报告带体系字段，八字与紫微的选项结构不同，存储层不解析选项
 package report
 
 import (
@@ -16,7 +17,13 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 
-	"github.com/liasica/kismet/internal/bazi"
+	"github.com/liasica/kismet/internal/birth"
+)
+
+// 命理体系
+const (
+	SystemBazi  = "bazi"
+	SystemZiwei = "ziwei"
 )
 
 // 存储桶：reports 按报告 id 存整条记录，shares 按分享哈希存报告 id
@@ -47,11 +54,14 @@ func (s Share) Locked() bool {
 
 // Report 一份报告：排盘输入、选项与解读正文
 type Report struct {
-	ID        string       `json:"id"`
-	CreatedAt time.Time    `json:"createdAt"`
-	UpdatedAt time.Time    `json:"updatedAt"`
-	Input     bazi.Input   `json:"input"`
-	Options   bazi.Options `json:"options"`
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	// System 命理体系，bazi 或 ziwei；早期记录没有这个字段，读出时按 bazi 补上
+	System string      `json:"system"`
+	Input  birth.Input `json:"input"`
+	// Options 该体系的排盘选项，原样保存，由接口层按体系解析
+	Options json.RawMessage `json:"options"`
 	// Model 生成解读的模型名，尚未解读时为空
 	Model string `json:"model,omitempty"`
 	// Analysis 解读正文 Markdown，尚未解读时为空
@@ -99,8 +109,8 @@ func (s *Store) Get(id string) (found Report, err error) {
 	return
 }
 
-// Upsert 新建报告，或更新已有报告的输入与选项；解读正文与分享设置保留
-func (s *Store) Upsert(id string, input bazi.Input, options bazi.Options) error {
+// Upsert 新建报告，或更新已有报告的体系、输入与选项；解读正文与分享设置保留
+func (s *Store) Upsert(id, system string, input birth.Input, options json.RawMessage) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		var item Report
 		err := readReport(tx, id, &item)
@@ -110,6 +120,7 @@ func (s *Store) Upsert(id string, input bazi.Input, options bazi.Options) error 
 			return err
 		}
 
+		item.System = system
 		item.Input = input
 		item.Options = options
 		return writeReport(tx, &item)
@@ -253,13 +264,19 @@ func (s *Store) List(offset, limit int) (Page, error) {
 	return page, err
 }
 
-// readReport 在事务内读一条报告
+// readReport 在事务内读一条报告，早期记录没有体系字段，按八字补上
 func readReport(tx *bolt.Tx, id string, item *Report) error {
 	raw := tx.Bucket(bucketReports).Get([]byte(id))
 	if raw == nil {
 		return ErrNotFound
 	}
-	return json.Unmarshal(raw, item)
+	if err := json.Unmarshal(raw, item); err != nil {
+		return err
+	}
+	if item.System == "" {
+		item.System = SystemBazi
+	}
+	return nil
 }
 
 // writeReport 在事务内写一条报告，顺带刷新更新时间

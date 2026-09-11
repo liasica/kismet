@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/liasica/kismet/internal/bazi"
+	"github.com/liasica/kismet/internal/report"
 )
 
 // 命理解读经 DeepSeek 完成：按请求里的排盘输入排盘、拼出提示词（见 prompt.go）包成 chat completions 请求，
@@ -142,7 +143,13 @@ func (s *Server) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 
 	// 输入先存成报告，解读中途断开也留得下已生成的正文
 	if cmd.ReportID != "" {
-		if err = s.reports.Upsert(cmd.ReportID, cmd.Chart.Input, cmd.Chart.Options); err != nil {
+		var options []byte
+		options, err = json.Marshal(cmd.Chart.Options)
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		if err = s.reports.Upsert(cmd.ReportID, report.SystemBazi, cmd.Chart.Input, options); err != nil {
 			writeError(w, err)
 			return
 		}

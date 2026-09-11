@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"crypto/subtle"
+	"encoding/json"
 	"math"
 	"net/http"
 	"strconv"
@@ -42,8 +43,8 @@ type adminReportSummary struct {
 // adminReport 单份报告的全部内容
 type adminReport struct {
 	adminReportSummary
-	Options  bazi.Options `json:"options"`
-	Analysis string       `json:"analysis"`
+	Options  json.RawMessage `json:"options"`
+	Analysis string          `json:"analysis"`
 }
 
 // adminReportList 列表响应：总数与当前页

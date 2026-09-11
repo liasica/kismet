@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"regexp"
@@ -60,11 +61,11 @@ type unlockRequest struct {
 
 // sharedReport 分享出去的报告内容
 type sharedReport struct {
-	Input     bazi.Input   `json:"input"`
-	Options   bazi.Options `json:"options"`
-	Analysis  string       `json:"analysis"`
-	CreatedAt time.Time    `json:"createdAt"`
-	UpdatedAt time.Time    `json:"updatedAt"`
+	Input     bazi.Input      `json:"input"`
+	Options   json.RawMessage `json:"options"`
+	Analysis  string          `json:"analysis"`
+	CreatedAt time.Time       `json:"createdAt"`
+	UpdatedAt time.Time       `json:"updatedAt"`
 }
 
 // sharedResponse 查看分享的响应：有密码且尚未验证时只给 locked
@@ -158,7 +159,13 @@ func (s *Server) handleCreateShare(w http.ResponseWriter, r *http.Request) {
 			writeError(w, err)
 			return
 		}
-		if err = s.reports.Upsert(id, *req.Input, options); err != nil {
+		var rawOptions []byte
+		rawOptions, err = json.Marshal(options)
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		if err = s.reports.Upsert(id, report.SystemBazi, *req.Input, rawOptions); err != nil {
 			writeError(w, err)
 			return
 		}
