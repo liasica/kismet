@@ -27,7 +27,7 @@ export interface ZiweiOptions {
 /** 庙陷六级，「地」是中州派表中原字 */
 export type Brightness = "庙" | "旺" | "地" | "平" | "闲" | "陷"
 
-export type Mutation = "禄" | "权" | "科" | "忌"
+export type ZiweiMutation = "禄" | "权" | "科" | "忌"
 
 export type PalaceName =
   | "命宫"
@@ -49,7 +49,7 @@ export interface ZiweiStar {
   /** 只有正曜与辅佐煞曜有庙陷 */
   brightness?: Brightness
   /** 生年四化 */
-  mutation?: Mutation
+  mutation?: ZiweiMutation
 }
 
 /** 大限一步 */
@@ -111,9 +111,9 @@ export interface Bureau {
 }
 
 /** 生年四化的一条 */
-export interface ZiweiMutation {
+export interface ZiweiStarMutation {
   star: string
-  mutation: Mutation
+  mutation: ZiweiMutation
 }
 
 export interface ZiweiChart {
@@ -138,7 +138,7 @@ export interface ZiweiChart {
   lifeMaster: string
   bodyMaster: string
   /** 生年四化，按禄权科忌排列 */
-  mutations: ZiweiMutation[]
+  mutations: ZiweiStarMutation[]
   /** 十二宫，按地支子至亥排列 */
   palaces: ZiweiPalace[]
 }
@@ -159,7 +159,7 @@ export interface ZiweiFlow {
   lifePalace: string
   /** 流禄 流羊 流陀 流魁 流钺 流昌 流曲 流马，流年另有年解 */
   stars: FlowStar[]
-  mutations: ZiweiMutation[]
+  mutations: ZiweiStarMutation[]
 }
 
 /** 一个流年 */

@@ -7,7 +7,7 @@
 
 import { EARTH_BRANCHES, HEAVEN_STEMS } from "../../birth/constants"
 import type { FiveElement } from "../../birth/types"
-import type { Mutation, PalaceName } from "../types"
+import type { PalaceName, ZiweiMutation } from "../types"
 
 /** 非负取模 */
 export function mod(n: number, m: number): number {
@@ -138,7 +138,7 @@ export const LIU_CHANG = branches("巳午申酉申酉亥子寅卯")
 /** 流曲按流年干：酉位起甲乙逆行，中州派传授 */
 export const LIU_QU = branches("酉申午巳午巳卯寅子亥")
 
-export const MUTATIONS: readonly Mutation[] = ["禄", "权", "科", "忌"]
+export const MUTATIONS: readonly ZiweiMutation[] = ["禄", "权", "科", "忌"]
 
 /** 中州派四化，索引为天干，内层依禄权科忌 */
 export const MUTATION_TABLE: readonly (readonly [

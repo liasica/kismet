@@ -2,7 +2,7 @@
  * 紫微模块的默认选项与配色
  */
 
-import type { Mutation, ZiweiOptions } from "@kismet/core"
+import type { ZiweiMutation, ZiweiOptions } from "@kismet/core"
 
 export const INITIAL_ZIWEI_OPTIONS: ZiweiOptions = {
   useTrueSolarTime: true,
@@ -12,7 +12,7 @@ export const INITIAL_ZIWEI_OPTIONS: ZiweiOptions = {
 }
 
 /** 四化标记的文字色 */
-export const MUTATION_TEXT: Record<Mutation, string> = {
+export const MUTATION_TEXT: Record<ZiweiMutation, string> = {
   禄: "text-wood",
   权: "text-fire",
   科: "text-water",

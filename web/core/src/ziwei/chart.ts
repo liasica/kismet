@@ -33,10 +33,10 @@ import { bodyPalaceOf, bureauOf, lifePalaceOf, palaceStemOf } from "./palaces"
 import { placeStars } from "./stars"
 import type {
   ZiweiChart,
-  ZiweiMutation,
   ZiweiOptions,
   ZiweiPalace,
   ZiweiStar,
+  ZiweiStarMutation,
 } from "./types"
 
 export const DEFAULT_ZIWEI_OPTIONS: ZiweiOptions = {
@@ -68,7 +68,7 @@ function starsAt(
   names: readonly string[],
   positions: Record<string, number>,
   branch: number,
-  mutations: ZiweiMutation[]
+  mutations: ZiweiStarMutation[]
 ): ZiweiStar[] {
   return names
     .filter((name) => positions[name] === branch)

@@ -34,7 +34,7 @@ import type {
   ZiweiChart,
   ZiweiFlow,
   ZiweiLimit,
-  ZiweiMutation,
+  ZiweiStarMutation,
   ZiweiYear,
 } from "./types"
 
@@ -118,7 +118,7 @@ export function minorLimitAgesOf(
 }
 
 /** 某个天干的四化，按禄权科忌 */
-export function mutationsOf(stem: number): ZiweiMutation[] {
+export function mutationsOf(stem: number): ZiweiStarMutation[] {
   return MUTATION_TABLE[stem]!.map((star, i) => ({
     star,
     mutation: MUTATIONS[i]!,

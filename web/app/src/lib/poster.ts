@@ -12,9 +12,9 @@ import { ELEMENT_KEY_ORDER, ELEMENT_NAMES, PILLAR_LABELS } from "@kismet/core"
 import type {
   BaziChart,
   FiveElement,
-  Mutation,
   PillarKind,
   ZiweiChart,
+  ZiweiMutation,
   ZiweiPalace,
   ZiweiStar,
 } from "@kismet/core"
@@ -81,7 +81,7 @@ function readPalette(): Palette {
 }
 
 /** 四化标记的颜色：禄权科取木火水，忌取警示色 */
-function mutationColor(palette: Palette, mutation: Mutation): string {
+function mutationColor(palette: Palette, mutation: ZiweiMutation): string {
   switch (mutation) {
     case "禄":
       return palette.element.木
