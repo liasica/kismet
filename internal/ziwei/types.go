@@ -47,9 +47,26 @@ func (p OptionsPatch) Apply(base Options) Options {
 	return base
 }
 
-// ResolveOptions 把补丁合到默认值上
+// maxAgeLowerBound、maxAgeUpperBound 小限虚岁的合法区间，与 HTTP 层 checkZiweiOptions 的校验一致
+//
+// HTTP 层只挡住了走接口的请求，命令行等直接调用本包的调用方不经过那层校验；
+// minorLimitAgesOf 按 MaxAge 循环并把每个虚岁都装进切片，这里兜底夹住取值，
+// 避免异常大的 MaxAge 把循环撑爆
+const (
+	maxAgeLowerBound = 1
+	maxAgeUpperBound = 200
+)
+
+// ResolveOptions 把补丁合到默认值上，并把 MaxAge 夹到 [1, 200] 之间
 func ResolveOptions(patch OptionsPatch) Options {
-	return patch.Apply(DefaultOptions)
+	options := patch.Apply(DefaultOptions)
+	if options.MaxAge < maxAgeLowerBound {
+		options.MaxAge = maxAgeLowerBound
+	}
+	if options.MaxAge > maxAgeUpperBound {
+		options.MaxAge = maxAgeUpperBound
+	}
+	return options
 }
 
 // Star 宫内的一颗星，只有正曜与辅佐煞曜有庙陷，四化只标生年四化

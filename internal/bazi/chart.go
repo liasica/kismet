@@ -59,9 +59,25 @@ func (p OptionsPatch) Apply(base Options) Options {
 	return base
 }
 
-// ResolveOptions 把补丁合到默认值上
+// maxAgeLowerBound、maxAgeUpperBound 流年虚岁的合法区间，与 HTTP 层 checkBaziOptions 的校验一致
+//
+// HTTP 层只挡住了走接口的请求，命令行等直接调用本包的调用方不经过那层校验；
+// BuildFortune 按 MaxAge 循环推流年，这里兜底夹住取值，避免异常大的 MaxAge 把循环撑爆
+const (
+	maxAgeLowerBound = 1
+	maxAgeUpperBound = 200
+)
+
+// ResolveOptions 把补丁合到默认值上，并把 MaxAge 夹到 [1, 200] 之间
 func ResolveOptions(patch OptionsPatch) Options {
-	return patch.Apply(DefaultOptions)
+	options := patch.Apply(DefaultOptions)
+	if options.MaxAge < maxAgeLowerBound {
+		options.MaxAge = maxAgeLowerBound
+	}
+	if options.MaxAge > maxAgeUpperBound {
+		options.MaxAge = maxAgeUpperBound
+	}
+	return options
 }
 
 // Paipan 排盘

@@ -10,7 +10,8 @@ import (
 func starsAt(names []string, positions map[string]int, branch int, mutations []Mutation) []Star {
 	out := make([]Star, 0)
 	for _, name := range names {
-		if positions[name] != branch {
+		at, ok := positions[name]
+		if !ok || at != branch {
 			continue
 		}
 		star := Star{Name: name, Brightness: BrightnessOf(name, branch)}
