@@ -38,7 +38,7 @@ func synthetic(t *testing.T) fstest.MapFS {
 		Systems:   map[string]string{},
 		Assist:    map[string]string{},
 		Mutations: map[string]knowledge.MutationEntry{},
-		Adjective: map[string]string{"天伤天使": "伤使"},
+		Adjective: map[string]string{},
 		Palaces:   map[string]map[string]string{},
 	}
 	for _, star := range knowledge.MajorStars {
@@ -49,6 +49,15 @@ func synthetic(t *testing.T) fstest.MapFS {
 	}
 	for _, pair := range knowledge.AssistPairs {
 		lib.Assist[pair] = "辅佐 " + pair
+	}
+	// 杂曜的 30 个条目键，与真实知识库一致，见 data_test.go
+	for _, key := range []string{
+		"三台八座", "华盖", "博士十二神", "台辅封诰", "咸池", "大耗", "天伤天使", "天刑天姚", "天厨",
+		"天哭天虚", "天官天福", "天寿", "天巫", "天德月德", "天才", "天月", "天空", "孤辰寡宿",
+		"将前十二神", "岁前十二神", "恩光天贵", "截空旬空", "破碎", "红鸾天喜", "蜚廉", "解神",
+		"长生十二神", "阴煞", "龙德", "龙池凤阁",
+	} {
+		lib.Adjective[key] = "杂曜 " + key
 	}
 	// 化曜条目带上中州派四化表里的星名，标题里要用
 	table := map[string][4]string{
@@ -123,6 +132,10 @@ func TestSelectOrderAndDedupe(t *testing.T) {
 		"命宫 太阳", "福德宫 天机", "夫妻宫 天同", "财帛宫 天梁", "事业宫 太阴", "疾厄宫 廉贞", "疾厄宫 天相",
 		"迁移宫 巨门", "父母宫 破军", "田宅宫 紫微", "田宅宫 天府", "子女宫 七杀", "兄弟宫 武曲", "交友宫 贪狼",
 		"辅佐煞 左辅右弼", "辅佐煞 天魁天钺", "辅佐煞 火星铃星", "辅佐煞 擎羊陀罗", "辅佐煞 地空地劫",
+		// 命宫（亥）、财帛宫（未）、事业宫（卯）、迁移宫（巳）三方四正所见的杂曜，按此顺序去重
+		"杂曜 天官天福", "杂曜 天巫", "杂曜 天德月德", "杂曜 三台八座", "杂曜 恩光天贵", "杂曜 截空旬空",
+		"杂曜 天空", "杂曜 红鸾天喜", "杂曜 咸池", "杂曜 破碎", "杂曜 天才", "杂曜 天寿",
+		"杂曜 长生十二神", "杂曜 博士十二神", "杂曜 岁前十二神", "杂曜 将前十二神", "杂曜 龙德",
 	}
 	if strings.Join(titles, "|") != strings.Join(want, "|") {
 		t.Errorf("选取顺序不符：\n得到 %v\n期望 %v", titles, want)
@@ -175,6 +188,37 @@ func TestSelectBorrowsOppositeAndKeepsBudget(t *testing.T) {
 	}
 	if total > knowledge.Budget || len(entries) != 3 {
 		t.Errorf("应在预算内截断：共 %d 字 %d 条", total, len(entries))
+	}
+}
+
+// TestSelectSkipsUnfitEntriesButKeepsShorterOnes 某条放不下时应跳过它、继续尝试后面
+// 优先级更低的条目，而不是遇到第一条放不下就整段停止：正曜条目放不下时，
+// 优先级最低的杂曜条目仍应因为放得下而被选中
+func TestSelectSkipsUnfitEntriesButKeepsShorterOnes(t *testing.T) {
+	chart, limit := chartA(t)
+
+	// 星系条目吃掉预算，只留 10 字的余量；正曜条目 11 字放不下，杂曜条目 10 字恰好放得下
+	const headroom = 10
+	lib := &knowledge.Library{
+		Systems:   map[string]string{"太阳独坐巳亥": strings.Repeat("字", knowledge.Budget-headroom)},
+		Stars:     map[string]string{"太阳": strings.Repeat("星", headroom+1)},
+		Adjective: map[string]string{"龙德": strings.Repeat("龙", headroom)},
+	}
+
+	entries := lib.Select(chart, limit)
+	titles := make([]string, 0, len(entries))
+	total := 0
+	for _, e := range entries {
+		titles = append(titles, e.Title)
+		total += len([]rune(e.Text))
+	}
+
+	want := []string{"星系 太阳独坐巳亥", "杂曜 龙德"}
+	if strings.Join(titles, "|") != strings.Join(want, "|") {
+		t.Errorf("应跳过放不下的正曜条目、继续选中更靠后但放得下的杂曜条目：得到 %v", titles)
+	}
+	if total > knowledge.Budget {
+		t.Errorf("选中条目的总字数不该超过 Budget：%d", total)
 	}
 }
 
