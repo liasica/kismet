@@ -2,6 +2,7 @@ import { cn } from "cn"
 import { Link, Navigate, NavLink, Route, Routes } from "react-router"
 
 import { BaziSessionProvider } from "@/components/bazi-session"
+import { ZiweiSessionProvider } from "@/components/ziwei-session"
 import { useReports } from "@/lib/reports"
 import { AdminReportPage } from "@/pages/admin-report"
 import { AdminReportsPage } from "@/pages/admin-reports"
@@ -44,16 +45,18 @@ export function App() {
       </header>
 
       <BaziSessionProvider>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/bazi" element={<BaziPage />} />
-          <Route path="/bazi/report" element={<BaziReportPage />} />
-          <Route path="/saved" element={<SavedPage />} />
-          <Route path="/s/:hash" element={<SharedPage />} />
-          <Route path="/admin" element={<AdminReportsPage />} />
-          <Route path="/admin/reports/:id" element={<AdminReportPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <ZiweiSessionProvider>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/bazi" element={<BaziPage />} />
+            <Route path="/bazi/report" element={<BaziReportPage />} />
+            <Route path="/saved" element={<SavedPage />} />
+            <Route path="/s/:hash" element={<SharedPage />} />
+            <Route path="/admin" element={<AdminReportsPage />} />
+            <Route path="/admin/reports/:id" element={<AdminReportPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </ZiweiSessionProvider>
       </BaziSessionProvider>
     </div>
   )
