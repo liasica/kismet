@@ -11,12 +11,12 @@
 
 ## 八字排盘
 
-入口是 `paipan(input, options)`，返回可直接 `JSON.stringify` 的 `Chart`。
+入口是 `baziPaipan(input, options)`，返回可直接 `JSON.stringify` 的 `BaziChart`。
 
 ```ts
-import { paipan, toText } from "@kismet/core"
+import { baziPaipan, baziToText } from "@kismet/core"
 
-const chart = paipan(
+const chart = baziPaipan(
   {
     year: 1990, month: 5, day: 3, hour: 12, minute: 30,
     gender: "male", name: "某某", longitude: 114.0833,
@@ -24,7 +24,7 @@ const chart = paipan(
   { useTrueSolarTime: true, qiYunPrecision: "hour" },
 )
 
-console.log(toText(chart))
+console.log(baziToText(chart))
 ```
 
 命令行入口用于跟现有排盘工具逐项对照：
@@ -52,8 +52,8 @@ pnpm paipan --help
 | 节气交节时刻 | tyme4ts | `SolarTerm.fromIndex` / `fromName` |
 | 干支纪年、干支纪月 | tyme4ts | `SixtyCycleYear` / `SixtyCycleMonth` |
 | 五行生克关系 | tyme4ts | `Element.getReinforce` / `getRestrain` / `getReinforced` / `getRestrained` |
-| 真太阳时（经度差与均时差） | 自实现 | `equation-of-time.ts` |
-| 夏令时区间 | 自实现 | `data/daylight-saving.ts` |
+| 真太阳时（经度差与均时差） | 自实现 | `src/birth/equation-of-time.ts` |
+| 夏令时区间 | 自实现 | `src/birth/daylight-saving.ts` |
 | 早晚子时分支 | 自实现 | `pillars.ts` |
 | 神煞查法表与匹配 | 自实现 | `src/bazi/data/shensha.ts`、`shensha.ts` |
 | 五行强弱评分 | 自实现 | `elements.ts` |
@@ -68,7 +68,7 @@ pnpm paipan --help
 
 ### 时间校正
 
-输入一律当作北京时间（UTC+8）的**钟表读数**，依次过三道校正，每道的偏移量都留在 `Chart.time` 里：
+输入一律当作北京时间（UTC+8）的**钟表读数**，依次过三道校正，每道的偏移量都留在 `BaziChart.time` 里：
 
 1. **夏令时**：落在中国 1986 至 1991 年夏令时区间的读数回拨一小时，得到标准北京时间。1992 年起中国不再实行夏令时，开关对其他年份无作用。
 2. **经度差**：地方平时 = 标准北京时间 + (经度 − 120) × 4 分钟。
@@ -207,7 +207,7 @@ pnpm test
 约束方式是黄金基准：
 
 ```bash
-pnpm fixtures      # 本包生成仓库根 data/fixtures/charts.json，54 个用例连同完整 Chart
+pnpm fixtures      # 本包生成仓库根 data/fixtures/charts.json，54 个用例连同完整 BaziChart
 go test ./...      # 在仓库根运行，Go 侧读同一份文件跑同样输入，逐字段比对
 ```
 
