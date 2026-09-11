@@ -1,6 +1,6 @@
 # 遇见（Kismet）
 
-中国传统命理排盘与解读的 Web 应用，命理体系有八字（四柱）与紫微斗数两套。
+中国传统命理排盘与解读的 Web 应用，命理体系有八字（四柱）与紫微斗数两套。紫微斗数是中州派口径的排盘（十二宫、四化、庙陷、大限流年）与解读，与八字共用出生信息表单、收藏、分享与后台。
 
 ## 目录结构
 
@@ -53,7 +53,8 @@ make dev          # 同时启动 Vite（36578）与 Go 服务（36579），Go �
 | `make test` | 跑 TypeScript 与 Go 的全部测试 |
 | `make lint` | ESLint、TypeScript 类型检查、go vet |
 | `make fixtures` | 重新生成跨语言的黄金基准并比对 |
-| `pnpm -C web paipan` | 命令行排盘，用于与现有排盘工具对照 |
+| `pnpm -C web paipan` | 命令行排八字盘，用于与现有排盘工具对照 |
+| `pnpm -C web ziwei` | 命令行排紫微盘，用于与现有排盘工具对照 |
 | `pnpm -C web format` | Prettier 格式化 |
 
 添加 Web 组件，在 `web/app` 下执行：
