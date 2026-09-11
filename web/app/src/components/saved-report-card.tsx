@@ -5,12 +5,13 @@ import { Link } from "react-router"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { baziPaipan } from "@kismet/core"
-import type { BaziChart, PillarKind } from "@kismet/core"
+import { baziPaipan, ziweiPaipan } from "@kismet/core"
+import type { BaziChart, PillarKind, ZiweiChart } from "@kismet/core"
 import { ELEMENT_TEXT } from "@/lib/bazi"
 import { locationNameOf, toPaipanInput } from "@/lib/birth-info"
 import { trackGlow } from "@/lib/glow"
 import { excerptOf, formatSavedAt, type SavedReport } from "@/lib/reports"
+import { SYSTEMS } from "@/lib/system"
 
 const PILLARS: ReadonlyArray<[PillarKind, string]> = [
   ["year", "年"],
@@ -19,15 +20,83 @@ const PILLARS: ReadonlyArray<[PillarKind, string]> = [
   ["hour", "时"],
 ]
 
-/** 按保存的表单值重新排盘，输入不合法时卡片不显示四柱 */
-function chartOf(report: SavedReport): BaziChart | undefined {
+type Figure =
+  { system: "bazi"; chart: BaziChart } | { system: "ziwei"; chart: ZiweiChart }
+
+/** 按保存的表单值重新排盘，输入不合法时卡片不显示命盘 */
+function figureOf(report: SavedReport): Figure | undefined {
   const input = toPaipanInput(report.birth)
   if (!input) return undefined
   try {
-    return baziPaipan(input, report.options)
+    return report.system === "ziwei"
+      ? { system: "ziwei", chart: ziweiPaipan(input, report.options) }
+      : { system: "bazi", chart: baziPaipan(input, report.options) }
   } catch {
     return undefined
   }
+}
+
+/** 四柱八字，按五行着色 */
+function PillarsFigure({ chart }: { chart: BaziChart }) {
+  return (
+    <div className="module-card-figure grid grid-cols-4">
+      {PILLARS.map(([kind, label]) => {
+        const p = chart.pillars[kind]
+        return (
+          <span key={kind} className="flex flex-col items-center gap-2">
+            <span className="text-[0.625rem] text-muted-foreground">
+              {label}
+            </span>
+            <span
+              className={cn(
+                "font-serif text-2xl leading-none",
+                ELEMENT_TEXT[p.stemElement]
+              )}
+            >
+              {p.stem}
+            </span>
+            <span
+              className={cn(
+                "font-serif text-2xl leading-none",
+                ELEMENT_TEXT[p.branchElement]
+              )}
+            >
+              {p.branch}
+            </span>
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
+/** 命宫与身宫的地支、命宫正曜与五行局 */
+function PalacesFigure({ chart }: { chart: ZiweiChart }) {
+  const life = chart.palaces.find((p) => p.name === "命宫")!
+  const majors = life.majorStars.map((s) => s.name).join(" ") || "借对宫"
+  const cells: Array<[string, string, string]> = [
+    ["命宫", chart.lifePalace, majors],
+    ["身宫", chart.bodyPalace, chart.forward ? "顺行" : "逆行"],
+    ["局", chart.bureau.name.slice(0, 2), `命主 ${chart.lifeMaster}`],
+  ]
+  return (
+    <div className="module-card-figure grid grid-cols-3">
+      {cells.map(([label, main, note], i) => (
+        <span key={label} className="flex flex-col items-center gap-2">
+          <span className="text-[0.625rem] text-muted-foreground">{label}</span>
+          <span
+            className={cn(
+              "font-serif text-2xl leading-none",
+              i === 2 && ELEMENT_TEXT[chart.bureau.element]
+            )}
+          >
+            {main}
+          </span>
+          <span className="text-[0.625rem] text-muted-foreground">{note}</span>
+        </span>
+      ))}
+    </div>
+  )
 }
 
 interface SavedReportCardProps {
@@ -39,7 +108,7 @@ interface SavedReportCardProps {
 }
 
 /**
- * 收藏页的报告卡片：四柱八字为主体，按五行着色
+ * 收藏页的报告卡片：八字以四柱为主体、紫微以命身宫为主体
  *
  * 整张卡片点开报告；删除分两步，第一下变成「确认删除」，三秒内不点第二下就还原
  */
@@ -49,7 +118,7 @@ export function SavedReportCard({
   onOpen,
   onDelete,
 }: SavedReportCardProps) {
-  const chart = React.useMemo(() => chartOf(report), [report])
+  const figure = React.useMemo(() => figureOf(report), [report])
   const [confirming, setConfirming] = React.useState(false)
   const name = report.birth.name || "未具名"
   const place = locationNameOf(report.birth)
@@ -71,7 +140,7 @@ export function SavedReportCard({
       <div className="relative m-px flex flex-1 flex-col gap-5 overflow-hidden bg-card p-6">
         <span className="module-card-light" aria-hidden />
         <Link
-          to="/bazi/report"
+          to={SYSTEMS[report.system].reportPath}
           className="absolute inset-0 z-10 outline-none"
           aria-label={`打开 ${name} 的报告`}
           onClick={() => onOpen(report)}
@@ -83,6 +152,7 @@ export function SavedReportCard({
               <Badge variant="secondary">
                 {report.birth.gender === "male" ? "乾造" : "坤造"}
               </Badge>
+              <Badge variant="outline">{SYSTEMS[report.system].title}</Badge>
               <span>
                 {report.birth.date} {report.birth.time}
               </span>
@@ -111,36 +181,13 @@ export function SavedReportCard({
           </Button>
         </div>
 
-        {chart && (
+        {figure && (
           <div className="relative border-y border-border py-4">
-            <div className="module-card-figure grid grid-cols-4">
-              {PILLARS.map(([kind, label]) => {
-                const p = chart.pillars[kind]
-                return (
-                  <span key={kind} className="flex flex-col items-center gap-2">
-                    <span className="text-[0.625rem] text-muted-foreground">
-                      {label}
-                    </span>
-                    <span
-                      className={cn(
-                        "font-serif text-2xl leading-none",
-                        ELEMENT_TEXT[p.stemElement]
-                      )}
-                    >
-                      {p.stem}
-                    </span>
-                    <span
-                      className={cn(
-                        "font-serif text-2xl leading-none",
-                        ELEMENT_TEXT[p.branchElement]
-                      )}
-                    >
-                      {p.branch}
-                    </span>
-                  </span>
-                )
-              })}
-            </div>
+            {figure.system === "ziwei" ? (
+              <PalacesFigure chart={figure.chart} />
+            ) : (
+              <PillarsFigure chart={figure.chart} />
+            )}
           </div>
         )}
 

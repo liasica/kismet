@@ -15,12 +15,7 @@ import { Separator } from "@/components/ui/separator"
 import { baziPaipan } from "@kismet/core"
 import type { BaziChart } from "@kismet/core"
 import { toPaipanInput } from "@/lib/birth-info"
-import {
-  deleteReport,
-  isReportId,
-  saveReport,
-  useReports,
-} from "@/lib/reports"
+import { deleteReport, isReportId, saveReport, useReports } from "@/lib/reports"
 
 /**
  * 报告页：排盘结果与命理解读，表单值来自会话存储
@@ -55,6 +50,7 @@ export function BaziReportPage() {
   const save = (text: string) =>
     saveReport({
       id: reportId,
+      system: "bazi",
       savedAt: Date.now(),
       birth: session.birth,
       options: session.options,

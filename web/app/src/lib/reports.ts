@@ -4,21 +4,28 @@
 
 import { useSyncExternalStore } from "react"
 
-import type { BaziOptions } from "@kismet/core"
+import type { BaziOptions, ZiweiOptions } from "@kismet/core"
 import type { BirthInfo } from "@/lib/birth-info"
 
-export interface SavedReport {
+interface SavedReportBase {
   /** 提交表单时生成，同一份报告重新解读会覆盖 */
   id: string
   /** 最近一次保存的时间戳 */
   savedAt: number
   birth: BirthInfo
-  options: BaziOptions
   /** 解读正文 Markdown，尚未解读时为空 */
   analysis: string
 }
 
-const STORAGE_KEY = "kismet.bazi.reports"
+/** 收藏的报告，`system` 判别选项的具体类型 */
+export type SavedReport =
+  | (SavedReportBase & { system: "bazi"; options: BaziOptions })
+  | (SavedReportBase & { system: "ziwei"; options: ZiweiOptions })
+
+const STORAGE_KEY = "kismet.reports"
+
+/** 只有八字时用的旧键，读到就迁到新键 */
+const LEGACY_KEY = "kismet.bazi.reports"
 
 /** 最多保留的份数，超出时丢弃最早保存的 */
 const LIMIT = 50
@@ -35,22 +42,32 @@ function read(): SavedReport[] {
   if (cache) return cache
   cache = []
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) cache = normalize((JSON.parse(raw) as SavedReport[]).sort(byNewest))
+    const raw =
+      localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_KEY)
+    if (raw) {
+      cache = normalize((JSON.parse(raw) as SavedReport[]).sort(byNewest))
+    }
   } catch {
     // 存储不可用或内容损坏，视为没有报告
   }
   return cache
 }
 
-/** id 不合服务端格式的条目换成新 id 并写回，服务端只认 32 位十六进制 */
+/** 补上旧数据缺的体系、换掉不合服务端格式的 id，有改动或来自旧键就写回新键并删旧键 */
 function normalize(reports: SavedReport[]): SavedReport[] {
-  if (reports.every((r) => isReportId(r.id))) return reports
-  const fixed = reports.map((r) =>
-    isReportId(r.id) ? r : { ...r, id: newReportId() }
-  )
+  const fixed = reports.map((r) => {
+    const system = (r as Partial<SavedReport>).system ?? "bazi"
+    const id = isReportId(r.id) ? r.id : newReportId()
+    return system === r.system && id === r.id
+      ? r
+      : ({ ...r, system, id } as SavedReport)
+  })
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(fixed))
+    const legacy = localStorage.getItem(LEGACY_KEY) !== null
+    if (legacy || fixed.some((r, i) => r !== reports[i])) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(fixed))
+      localStorage.removeItem(LEGACY_KEY)
+    }
   } catch {
     // 存储不可用时只保留在内存里
   }

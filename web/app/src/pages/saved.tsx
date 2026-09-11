@@ -4,20 +4,27 @@ import { Link } from "react-router"
 import { useBaziSession } from "@/components/bazi-session"
 import { SavedReportCard } from "@/components/saved-report-card"
 import { buttonVariants } from "@/components/ui/button"
+import { useZiweiSession } from "@/components/ziwei-session"
 import { deleteReport, useReports, type SavedReport } from "@/lib/reports"
 
 /** 收藏页：已收藏的报告以卡片列出，点开按原表单值重新排盘并展示保存的解读 */
 export function SavedPage() {
   const reports = useReports()
-  const [, setSession] = useBaziSession()
+  const [, setBaziSession] = useBaziSession()
+  const [, setZiweiSession] = useZiweiSession()
 
-  const open = (report: SavedReport) =>
-    setSession({
+  const open = (report: SavedReport) => {
+    const session = {
       birth: report.birth,
-      options: report.options,
       submittedAt: Date.now(),
       reportId: report.id,
-    })
+    }
+    if (report.system === "ziwei") {
+      setZiweiSession({ ...session, options: report.options })
+    } else {
+      setBaziSession({ ...session, options: report.options })
+    }
+  }
 
   return (
     <section className="flex flex-col gap-8">
@@ -40,7 +47,7 @@ export function SavedPage() {
           <p className="text-sm text-muted-foreground">
             还没有收藏的报告。排盘后在报告页点「收藏」，解读完成也会自动收藏。
           </p>
-          <Link to="/bazi" className={buttonVariants({ size: "sm" })}>
+          <Link to="/" className={buttonVariants({ size: "sm" })}>
             去排盘
             <RiArrowRightLine data-icon="inline-end" />
           </Link>
