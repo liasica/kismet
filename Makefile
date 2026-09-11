@@ -44,10 +44,10 @@ lint:
 	pnpm -C web typecheck
 	go vet ./...
 
-## fixtures 重新生成跨语言黄金基准并用 Go 侧比对
+## fixtures 重新生成两套跨语言黄金基准并用 Go 侧比对
 fixtures:
 	pnpm -C web fixtures
-	go test ./internal/bazi/...
+	go test ./internal/bazi/... ./internal/ziwei/...
 
 clean:
 	rm -rf $(BIN) web/app/dist/*

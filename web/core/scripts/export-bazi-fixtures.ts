@@ -6,7 +6,7 @@
  * 这里把一批覆盖各个分支的输入连同它们算出的完整 `Chart` 写成 JSON，
  * Go 的测试读同一份文件跑同样的输入并逐字段比对
  *
- * 用法：pnpm --filter @kismet/core fixtures
+ * 用法：`pnpm --filter @kismet/core fixtures:bazi`
  */
 
 import { writeFileSync } from "node:fs"
@@ -29,7 +29,7 @@ const fixtures: Fixture[] = []
 function add(
   label: string,
   input: PaipanInput,
-  options: Partial<BaziOptions> = {},
+  options: Partial<BaziOptions> = {}
 ) {
   fixtures.push({
     label,
@@ -48,7 +48,7 @@ const male = (
   day: number,
   hour: number,
   minute: number,
-  longitude?: number,
+  longitude?: number
 ): PaipanInput => ({
   year,
   month,
@@ -65,15 +65,18 @@ const female = (
   day: number,
   hour: number,
   minute: number,
-  longitude?: number,
-): PaipanInput => ({ ...male(year, month, day, hour, minute, longitude), gender: "female" })
+  longitude?: number
+): PaipanInput => ({
+  ...male(year, month, day, hour, minute, longitude),
+  gender: "female",
+})
 
 // 基准盘，与问真逐项核对过，流年放到 100 岁做全量比对
-add(
-  "问真基准盘 真太阳时 折到时辰",
-  male(1990, 5, 3, 12, 30, 114.0833),
-  { useTrueSolarTime: true, qiYunPrecision: "hour", maxAge: 100 },
-)
+add("问真基准盘 真太阳时 折到时辰", male(1990, 5, 3, 12, 30, 114.0833), {
+  useTrueSolarTime: true,
+  qiYunPrecision: "hour",
+  maxAge: 100,
+})
 add("基准盘 北京时 折到日", male(1990, 5, 3, 12, 30, 114.0833), SHORT)
 add("基准盘 神煞跳过基准柱", male(1990, 5, 3, 12, 30, 114.0833), {
   ...SHORT,
@@ -104,7 +107,7 @@ add(
     latitude: 39.9289,
     location: "北京市 东城区",
   },
-  wz,
+  wz
 )
 
 // 子时六个时点，两派各一遍
@@ -137,7 +140,7 @@ function around(term: SolarTerm) {
       x.getDay(),
       x.getHour(),
       x.getMinute(),
-      0,
+      0
     )
   return { before: trunc(t.next(-60)), after: trunc(t.next(60)) }
 }
@@ -159,7 +162,7 @@ for (const [year, name] of [
     add(
       `${year} ${name}${side}一分钟`,
       male(t.getYear(), t.getMonth(), t.getDay(), t.getHour(), t.getMinute()),
-      SHORT,
+      SHORT
     )
   }
 }
@@ -202,12 +205,18 @@ add("夏令时起点前一分钟", male(1990, 4, 15, 2, 59), {
   ...SHORT,
   useDaylightSaving: true,
 })
-add("夏令时起点", male(1990, 4, 15, 3, 0), { ...SHORT, useDaylightSaving: true })
+add("夏令时起点", male(1990, 4, 15, 3, 0), {
+  ...SHORT,
+  useDaylightSaving: true,
+})
 add("夏令时终点前一分钟", male(1990, 9, 16, 1, 59), {
   ...SHORT,
   useDaylightSaving: true,
 })
-add("夏令时终点", male(1990, 9, 16, 2, 0), { ...SHORT, useDaylightSaving: true })
+add("夏令时终点", male(1990, 9, 16, 2, 0), {
+  ...SHORT,
+  useDaylightSaving: true,
+})
 
 // 四组顺逆
 add("阳男 1990", male(1990, 5, 3, 12, 30), SHORT)
@@ -222,6 +231,6 @@ add("十二支藏干齐全的一造", male(2024, 1, 1, 0, 0), SHORT)
 add("跨年子时 2024-02-03 23:30", male(2024, 2, 3, 23, 30), SHORT)
 add("节在 23 点后 2017 立春", male(2017, 2, 3, 23, 40), SHORT)
 
-const out = "../../data/fixtures/charts.json"
+const out = "../../data/fixtures/bazi-charts.json"
 writeFileSync(out, JSON.stringify(fixtures, null, 1))
 process.stdout.write(`${fixtures.length} 个用例写入 ${out}\n`)

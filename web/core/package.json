@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit",
     "paipan": "tsx scripts/paipan.ts",
     "ziwei": "tsx scripts/ziwei.ts",
-    "fixtures": "tsx scripts/export-fixtures.ts"
+    "fixtures": "tsx scripts/export-bazi-fixtures.ts && tsx scripts/export-ziwei-fixtures.ts",
+    "fixtures:bazi": "tsx scripts/export-bazi-fixtures.ts",
+    "fixtures:ziwei": "tsx scripts/export-ziwei-fixtures.ts"
   },
   "dependencies": {
     "tyme4ts": "^1.5.2"
