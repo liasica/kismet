@@ -42,6 +42,23 @@ const D: PaipanInput = {
   minute: 30,
   gender: "male",
 }
+// E、F：农历正月初一与立春错开的边界，紫微按正月初一分界、八字按立春分界
+const E: PaipanInput = {
+  year: 1990,
+  month: 1,
+  day: 26,
+  hour: 12,
+  minute: 0,
+  gender: "male",
+}
+const F: PaipanInput = {
+  year: 1990,
+  month: 1,
+  day: 27,
+  hour: 12,
+  minute: 0,
+  gender: "male",
+}
 
 const stars = (list: ZiweiPalace["majorStars"]) =>
   list.length ? list.map(ziweiStarText).join(" ") : "无"
@@ -330,5 +347,30 @@ describe("选项与序列化", () => {
     const hongLuan = json.palaces.find((p) => p.name === "夫妻宫")!
       .adjectiveStars[0]!
     expect(hongLuan).toEqual({ name: "红鸾" })
+  })
+})
+
+describe("边界：紫微按正月初一分界、八字按立春分界，1990 年两者错开", () => {
+  it("参考盘 E：1990-01-26 除夕，农历年未跨年仍是己巳而非庚午", () => {
+    const chart = ziweiPaipan(E)
+    expect(chart.lunar.year).toBe(1989)
+    expect(chart.lunar.yearSixtyCycle).toBe("己巳")
+    expect(chart.yearStem).toBe("己")
+    expect(chart.yearBranch).toBe("巳")
+    expect(chart.time.zodiac).toBe("蛇")
+
+    // 断言写成算式而非写死数字，若大限误按公历年（`input.year`）
+    // 而非农历年（`lunar.year`）推算，这里就会对不上
+    const life = chart.palaces.find((p) => p.name === "命宫")!
+    expect(life.decade.startYear).toBe(1989 + life.decade.startAge - 1)
+  })
+
+  it("参考盘 F：1990-01-27 正月初一，立春未到，生肖随农历年支变马", () => {
+    const chart = ziweiPaipan(F)
+    expect(chart.lunar.year).toBe(1990)
+    expect(chart.lunar.yearSixtyCycle).toBe("庚午")
+    // 这天在立春之前，八字口径的年柱与生肖是己巳、蛇；紫微若漏掉
+    // 按农历年支覆盖生肖这一步，会沿用八字口径得到蛇而不是马
+    expect(chart.time.zodiac).toBe("马")
   })
 })
