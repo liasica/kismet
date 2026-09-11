@@ -29,7 +29,7 @@ import {
 import { errorMessage } from "@/lib/api"
 import { formatSavedAt } from "@/lib/reports"
 import type { ShareInfo } from "@/lib/share"
-import { SYSTEMS } from "@/lib/system"
+import { systemMetaOf } from "@/lib/system"
 
 /**
  * 后台首页：服务端保存的全部报告，按创建时间倒序分页，点一行进详情
@@ -165,7 +165,7 @@ function ReportTable({ page, onGoto }: ReportTableProps) {
                   </span>
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {SYSTEMS[report.system].title}
+                  {systemMetaOf(report.system).title}
                 </TableCell>
                 <TableCell className="tabular-nums">
                   {formatBirth(report.input)}

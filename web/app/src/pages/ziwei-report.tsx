@@ -14,7 +14,9 @@ import { ZiweiChartView } from "@/components/ziwei-chart-view"
 import { useZiweiSession } from "@/components/ziwei-session"
 import { ziweiPaipan } from "@kismet/core"
 import type { ZiweiChart } from "@kismet/core"
+import type { AnalysisRecord } from "@/lib/analysis"
 import { toPaipanInput } from "@/lib/birth-info"
+import type { PosterSubject } from "@/lib/poster"
 import { deleteReport, isReportId, saveReport, useReports } from "@/lib/reports"
 import { SYSTEMS } from "@/lib/system"
 
@@ -42,6 +44,24 @@ export function ZiweiReportPage() {
       return { error: e instanceof Error ? e.message : String(e) }
     }
   }, [session.birth, session.options])
+
+  // 引用稳定，避免海报与解读面板的 effect 因父组件重渲染而重跑
+  const subject = React.useMemo<PosterSubject | undefined>(
+    () => (result.chart ? { system: "ziwei", chart: result.chart } : undefined),
+    [result.chart]
+  )
+  const record = React.useMemo<AnalysisRecord | undefined>(
+    () =>
+      result.chart
+        ? {
+            system: "ziwei",
+            reportId,
+            input: result.chart.input,
+            options: result.chart.options,
+          }
+        : undefined,
+    [reportId, result.chart]
+  )
 
   if (!session.submittedAt || !isReportId(reportId)) {
     return <Navigate to={SYSTEMS.ziwei.path} replace />
@@ -89,10 +109,10 @@ export function ZiweiReportPage() {
             )}
             {saved ? "已收藏" : "收藏"}
           </Button>
-          {result.chart && (
+          {subject && (
             <ShareDialog
               reportId={reportId}
-              subject={{ system: "ziwei", chart: result.chart }}
+              subject={subject}
               analysis={analysis}
             />
           )}
@@ -107,18 +127,13 @@ export function ZiweiReportPage() {
         </div>
       </div>
 
-      {result.chart ? (
+      {result.chart && record ? (
         <>
           <ZiweiChartView chart={result.chart} />
           <Separator />
           <AnalysisPanel
             key={session.submittedAt}
-            record={{
-              system: "ziwei",
-              reportId,
-              input: result.chart.input,
-              options: result.chart.options,
-            }}
+            record={record}
             initialText={saved?.analysis}
             onComplete={complete}
           />

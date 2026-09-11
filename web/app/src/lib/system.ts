@@ -35,5 +35,18 @@ export function isSystem(value: unknown): value is System {
   return value === "bazi" || value === "ziwei"
 }
 
+/** 体系未知时的占位展示信息 */
+const UNKNOWN_SYSTEM: SystemMeta = {
+  eyebrow: "Unknown System",
+  title: "未知体系",
+  path: "/",
+  reportPath: "/",
+}
+
+/** 取体系的展示信息，值不合法时返回未知体系的占位信息而不抛错 */
+export function systemMetaOf(value: unknown): SystemMeta {
+  return isSystem(value) ? SYSTEMS[value] : UNKNOWN_SYSTEM
+}
+
 /** 服务端原样透传的排盘选项，按 `system` 判别具体类型 */
 export type ReportOptions = BaziOptions | ZiweiOptions

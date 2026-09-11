@@ -16,7 +16,7 @@ import {
 import { errorMessage } from "@/lib/api"
 import { formatSavedAt } from "@/lib/reports"
 import { shareUrlOf } from "@/lib/share"
-import { SYSTEMS } from "@/lib/system"
+import { isSystem, systemMetaOf } from "@/lib/system"
 
 /** 后台的报告详情：服务端信息、按保存的输入重新排的命盘与解读正文 */
 export function AdminReportPage() {
@@ -84,13 +84,19 @@ function ReportDetail({ id }: { id: string }) {
       {state.kind === "ready" && (
         <>
           <ReportMeta report={state.report} />
-          <ReportView
-            system={state.report.system}
-            input={state.report.input}
-            options={state.report.options}
-            analysis={state.report.analysis}
-            updatedAt={state.report.updatedAt}
-          />
+          {isSystem(state.report.system) ? (
+            <ReportView
+              system={state.report.system}
+              input={state.report.input}
+              options={state.report.options}
+              analysis={state.report.analysis}
+              updatedAt={state.report.updatedAt}
+            />
+          ) : (
+            <p className="text-sm text-destructive">
+              这份报告的体系无法识别，无法显示
+            </p>
+          )}
         </>
       )}
     </section>
@@ -102,7 +108,7 @@ function ReportMeta({ report }: { report: AdminReport }) {
   const share = report.share
   const rows: Array<[string, React.ReactNode]> = [
     ["报告 id", <span className="font-mono text-xs">{report.id}</span>],
-    ["体系", SYSTEMS[report.system].title],
+    ["体系", systemMetaOf(report.system).title],
     ["创建于", formatSavedAt(Date.parse(report.createdAt))],
     ["更新于", formatSavedAt(Date.parse(report.updatedAt))],
     ["模型", report.model || "未记录"],

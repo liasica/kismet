@@ -14,7 +14,9 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { baziPaipan } from "@kismet/core"
 import type { BaziChart } from "@kismet/core"
+import type { AnalysisRecord } from "@/lib/analysis"
 import { toPaipanInput } from "@/lib/birth-info"
+import type { PosterSubject } from "@/lib/poster"
 import { deleteReport, isReportId, saveReport, useReports } from "@/lib/reports"
 
 /**
@@ -42,6 +44,24 @@ export function BaziReportPage() {
       return { error: e instanceof Error ? e.message : String(e) }
     }
   }, [session.birth, session.options])
+
+  // 引用稳定，避免海报与解读面板的 effect 因父组件重渲染而重跑
+  const subject = React.useMemo<PosterSubject | undefined>(
+    () => (result.chart ? { system: "bazi", chart: result.chart } : undefined),
+    [result.chart]
+  )
+  const record = React.useMemo<AnalysisRecord | undefined>(
+    () =>
+      result.chart
+        ? {
+            system: "bazi",
+            reportId,
+            input: result.chart.input,
+            options: result.chart.options,
+          }
+        : undefined,
+    [reportId, result.chart]
+  )
 
   if (!session.submittedAt || !isReportId(reportId)) {
     return <Navigate to="/bazi" replace />
@@ -87,10 +107,10 @@ export function BaziReportPage() {
             )}
             {saved ? "已收藏" : "收藏"}
           </Button>
-          {result.chart && (
+          {subject && (
             <ShareDialog
               reportId={reportId}
-              subject={{ system: "bazi", chart: result.chart }}
+              subject={subject}
               analysis={analysis}
             />
           )}
@@ -106,18 +126,13 @@ export function BaziReportPage() {
         </div>
       </div>
 
-      {result.chart ? (
+      {result.chart && record ? (
         <>
           <ChartView chart={result.chart} />
           <Separator />
           <AnalysisPanel
             key={session.submittedAt}
-            record={{
-              system: "bazi",
-              reportId,
-              input: result.chart.input,
-              options: result.chart.options,
-            }}
+            record={record}
             initialText={saved?.analysis}
             onComplete={complete}
           />

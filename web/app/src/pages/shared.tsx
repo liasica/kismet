@@ -13,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { errorMessage } from "@/lib/api"
 import { fetchShared, unlockShared, type SharedReport } from "@/lib/share"
-import { SYSTEMS, isSystem } from "@/lib/system"
+import { isSystem, systemMetaOf } from "@/lib/system"
 
 type State =
   | { kind: "loading" }
@@ -48,14 +48,20 @@ export function SharedPage() {
     }
   }, [hash])
 
-  // 报告取回来之前不知道体系，标题先用通称
   const system =
     state.kind === "ready" && isSystem(state.report.system)
       ? state.report.system
       : undefined
-  const meta = system
-    ? SYSTEMS[system]
-    : { eyebrow: "Shared Report", title: "分享的报告", path: "/" }
+  // 报告取回来之前，或体系无法识别时，标题用通称
+  const meta =
+    state.kind === "ready"
+      ? systemMetaOf(state.report.system)
+      : {
+          eyebrow: "Shared Report",
+          title: "分享的报告",
+          path: "/",
+          reportPath: "/",
+        }
 
   return (
     <section className="flex flex-col gap-10">
@@ -98,14 +104,19 @@ export function SharedPage() {
           onUnlock={(report) => setState({ kind: "ready", report })}
         />
       )}
-      {state.kind === "ready" && (
+      {state.kind === "ready" && system && (
         <ReportView
-          system={system ?? "bazi"}
+          system={system}
           input={state.report.input}
           options={state.report.options}
           analysis={state.report.analysis}
           updatedAt={state.report.updatedAt}
         />
+      )}
+      {state.kind === "ready" && !system && (
+        <p className="text-sm text-destructive">
+          这份报告的体系无法识别，无法显示
+        </p>
       )}
     </section>
   )

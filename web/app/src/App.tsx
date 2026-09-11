@@ -1,7 +1,16 @@
+import { Component, type ErrorInfo, type ReactNode } from "react"
 import { cn } from "cn"
-import { Link, Navigate, NavLink, Route, Routes } from "react-router"
+import {
+  Link,
+  Navigate,
+  NavLink,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router"
 
 import { BaziSessionProvider } from "@/components/bazi-session"
+import { buttonVariants } from "@/components/ui/button"
 import { ZiweiSessionProvider } from "@/components/ziwei-session"
 import { useReports } from "@/lib/reports"
 import { AdminReportPage } from "@/pages/admin-report"
@@ -14,9 +23,42 @@ import { SharedPage } from "@/pages/shared"
 import { ZiweiPage } from "@/pages/ziwei"
 import { ZiweiReportPage } from "@/pages/ziwei-report"
 
+interface ErrorBoundaryState {
+  error?: Error
+}
+
+/** 单个组件抛错时显示一条错误信息，不让整个应用白屏；路由切换即重新挂载 */
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  ErrorBoundaryState
+> {
+  state: ErrorBoundaryState = {}
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error(error, info.componentStack)
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children
+    return (
+      <div className="flex flex-col items-start gap-4 border border-dashed border-destructive/50 p-8">
+        <p className="text-sm text-destructive">页面出现错误，无法继续显示</p>
+        <Link to="/" className={buttonVariants({ size: "sm" })}>
+          返回首页
+        </Link>
+      </div>
+    )
+  }
+}
+
 /** 所有页面共用这一个容器的宽度，页面内不再各自设最大宽度 */
 export function App() {
   const collected = useReports().length
+  const location = useLocation()
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-4xl flex-col gap-12 px-6 py-10">
@@ -48,18 +90,20 @@ export function App() {
 
       <BaziSessionProvider>
         <ZiweiSessionProvider>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/bazi" element={<BaziPage />} />
-            <Route path="/bazi/report" element={<BaziReportPage />} />
-            <Route path="/ziwei" element={<ZiweiPage />} />
-            <Route path="/ziwei/report" element={<ZiweiReportPage />} />
-            <Route path="/saved" element={<SavedPage />} />
-            <Route path="/s/:hash" element={<SharedPage />} />
-            <Route path="/admin" element={<AdminReportsPage />} />
-            <Route path="/admin/reports/:id" element={<AdminReportPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <ErrorBoundary key={location.pathname}>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/bazi" element={<BaziPage />} />
+              <Route path="/bazi/report" element={<BaziReportPage />} />
+              <Route path="/ziwei" element={<ZiweiPage />} />
+              <Route path="/ziwei/report" element={<ZiweiReportPage />} />
+              <Route path="/saved" element={<SavedPage />} />
+              <Route path="/s/:hash" element={<SharedPage />} />
+              <Route path="/admin" element={<AdminReportsPage />} />
+              <Route path="/admin/reports/:id" element={<AdminReportPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </ErrorBoundary>
         </ZiweiSessionProvider>
       </BaziSessionProvider>
     </div>

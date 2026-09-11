@@ -6,6 +6,7 @@ import { useSyncExternalStore } from "react"
 
 import type { BaziOptions, ZiweiOptions } from "@kismet/core"
 import type { BirthInfo } from "@/lib/birth-info"
+import { isSystem } from "@/lib/system"
 
 interface SavedReportBase {
   /** 提交表单时生成，同一份报告重新解读会覆盖 */
@@ -56,7 +57,8 @@ function read(): SavedReport[] {
 /** 补上旧数据缺的体系、换掉不合服务端格式的 id，有改动或来自旧键就写回新键并删旧键 */
 function normalize(reports: SavedReport[]): SavedReport[] {
   const fixed = reports.map((r) => {
-    const system = (r as Partial<SavedReport>).system ?? "bazi"
+    const raw = (r as Partial<SavedReport>).system
+    const system = isSystem(raw) ? raw : "bazi"
     const id = isReportId(r.id) ? r.id : newReportId()
     return system === r.system && id === r.id
       ? r
