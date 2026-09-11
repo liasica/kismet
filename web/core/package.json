@@ -12,6 +12,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "paipan": "tsx scripts/paipan.ts",
+    "ziwei": "tsx scripts/ziwei.ts",
     "fixtures": "tsx scripts/export-fixtures.ts"
   },
   "dependencies": {

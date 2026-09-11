@@ -4,7 +4,8 @@
 
 | 入口 | 内容 |
 | --- | --- |
-| `@kismet/core` | 八字排盘，`src/bazi/` |
+| `@kismet/core` | 八字与紫微斗数排盘，`src/bazi/`、`src/ziwei/` |
+| `@kismet/core` | 共用出生信息处理，`src/birth/` |
 | `@kismet/core/region` | 中国行政区划查询，`src/region/` |
 
 数据本体放在仓库根的 `data/`，是语言中立的 JSON，Go 服务端读同一份：`data/region/` 是区划，`data/fixtures/charts.json` 是约束两份实现一致的黄金基准。
@@ -62,7 +63,7 @@ pnpm paipan --help
 
 大运与小运的干支自己推而不用 `DecadeFortune` / `Fortune`：那两个类从 `tyme4ts` 内部重算的八字取月柱与时柱，选择晚子时算当天时时柱会与本模块不同，自己推可以保证跟本模块的四柱一致。
 
-所有查表数据与算法分离：`data/constants.ts` 放干支基础常量与月序，`src/bazi/data/shensha.ts` 放神煞查法，`data/daylight-saving.ts` 放夏令时区间。藏干、纳音、五虎遁、五鼠遁的表由 `tyme4ts` 提供，模块不再抄一份；`pillars.ts` 另外导出了 `monthStemOf`（五虎遁）与 `hourStemOf`（五鼠遁）两个公式函数，测试用它们跟 `tyme4ts` 的排法交叉核对。
+所有查表数据与算法分离：`data/constants.ts` 放干支基础常量与月序，`src/bazi/data/shensha.ts` 放神煞查法，`src/birth/daylight-saving.ts` 放夏令时区间。藏干、纳音、五虎遁、五鼠遁的表由 `tyme4ts` 提供，模块不再抄一份；`pillars.ts` 另外导出了 `monthStemOf`（五虎遁）与 `hourStemOf`（五鼠遁）两个公式函数，测试用它们跟 `tyme4ts` 的排法交叉核对。
 
 ## 排盘规则
 
@@ -214,6 +215,59 @@ go test ./...      # 在仓库根运行，Go 侧读同一份文件跑同样输�
 基准覆盖真太阳时、夏令时、早晚子时两派、立春与十二节的交节边界、四组顺逆、两档起运精度、神煞的两种口径、两个五行策略。改动任何一侧的排盘逻辑后都要重跑这两条命令。
 
 为此有两处刻意的设计：均时差用自包含公式（见上），以及 `elements` 的 `scores` 与 `seasonalState` 用英文键（`wood`/`fire`/`earth`/`metal`/`water`），中文只出现在值与界面上 —— Go 与移动端解析中文 JSON key 很别扭。中英映射在 `ELEMENT_KEYS` 与 `ELEMENT_NAMES`。
+
+## 紫微斗数排盘
+
+入口是 `ziweiPaipan(input, options)`，输入与八字共用 `PaipanInput`，返回 `ZiweiChart`；`ziweiYearly(chart, year)` 取某个农历年的流年流曜，`ziweiDecadeFlow(chart, index)` 取某步大限的流曜，`ziweiLimitAt(chart, date)` 取某个日期所处的运限。
+
+```ts
+import { ziweiPaipan, ziweiToText, ziweiYearly } from "@kismet/core"
+
+const chart = ziweiPaipan(
+  { year: 1990, month: 5, day: 3, hour: 12, minute: 30, gender: "male" },
+  { useTrueSolarTime: false }
+)
+console.log(ziweiToText(chart))
+console.log(ziweiYearly(chart, 2026).stars)
+```
+
+命令行：`pnpm ziwei --date 1990-05-03 --time 12:30 --gender male --year 2026`。
+
+### 口径
+
+取中州派（王亭之《中州派紫微斗数初级讲义》与《深造讲义》上下册），不做流派切换。与坊本不同之处：
+
+- 四化：戊干 贪狼禄 太阴权 太阳科 天机忌；庚干 太阳禄 武曲权 天府科 天同忌；壬干 天梁禄 紫微权 天府科 武曲忌；不用左辅右弼化科
+- 天伤天使：阳男阴女天伤在交友宫、天使在疾厄宫，阴男阳女互换
+- 命主按出生年支取
+- 解神分年解与月解，流年另有年解流曜
+- 截空与旬空各占两宫，阳年生人阳宫为正空、阴年生人阴宫为正空，傍空记作「截空傍」「旬空傍」
+- 流曲按流年干另有起法：甲酉 乙申 丙午 丁巳 戊午 己巳 庚卯 辛寅 壬子 癸亥
+- 庙陷分庙、旺、地、平、闲、陷六级，「地」照录书中原字，只标正曜与辅佐煞曜
+
+### 规则
+
+- 时间：输入按北京时间钟表读数，沿用八字模块的夏令时、经度差、均时差三道校正；晚子时默认属当日（中州派以零时为一日之始），`lateZiAsNextDay` 打开时算次日
+- 农历：年以正月初一为界、月按农历月，不看节气；闰月初一至十五按本月、十六起按下一个月，日数不变；农历换算全部走 tyme4ts
+- 命宫寅起正月顺数至生月、再起子时逆数至生时，身宫顺数；十二宫自命宫逆布；宫干五虎遁；五行局按命宫干支纳音
+- 紫微按局数除日数取商与余，余数奇退偶进；书中「安紫微表」的土五局十一日与火六局初九为印刷错误，以算法为准
+- 大限自命宫起，阳男阴女顺行、阴男阳女逆行，起限岁数即局数；小限男顺女逆不分阴阳；长生十二神按局起、博士十二神从禄存起，方向同大限
+- 流年以太岁宫为命宫，流禄羊陀、流魁钺、流昌曲、流四化按流年干，流马按流年支；大限流曜按大限宫干支；岁前十二神从太岁起，将前十二神从三合旺地起；斗君由太岁宫起正月逆数至生月再起子时顺数至生时
+- 虚岁与流年以农历年为界，与八字模块以立春为界不同
+
+### 数据来源与核对
+
+安星口诀、安星简表与庙陷总表全部出自初级讲义第 17 至 56 页；深造讲义第 241 至 242 页的庙陷表与之一致。实现与书中全部例题及安紫微表逐格核对，并与 iztro 交叉比对数百张随机命盘，除上述流派差异外全部一致。
+
+### 测试覆盖
+
+| 文件 | 内容 |
+| --- | --- |
+| `__tests__/tables.test.ts` | 查表数据、四化表、庙陷整行 |
+| `__tests__/palaces.test.ts` | 时支、闰月归属、晚子时、农历年界、命身宫、五虎遁、纳音、五行局 |
+| `__tests__/stars.test.ts` | 安紫微表 150 格、口诀例题、正空傍空、天伤天使互换 |
+| `__tests__/fortune.test.ts` | 长生博士、岁前将前、大限、小限、流曜、农历年干支 |
+| `__tests__/chart.test.ts` | 四张参考盘整盘、流年、大限流曜、所处运限、文字命盘、序列化 |
 
 ## 行政区划
 

@@ -12,6 +12,7 @@
     "test": "pnpm -r test",
     "fixtures": "pnpm --filter @kismet/core fixtures",
     "paipan": "pnpm --filter @kismet/core paipan",
+    "ziwei": "pnpm --filter @kismet/core ziwei",
     "format": "prettier --write \"**/*.{ts,tsx}\""
   },
   "devDependencies": {
