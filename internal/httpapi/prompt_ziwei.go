@@ -19,7 +19,7 @@ const ziweiSystemPrompt = `你是执业多年的紫微斗数命理师，按中�
 - 论星以星系为单位，不孤立论单星：先定该宫正曜组成的星系（无正曜的宫借对宫正曜），再看三方四正会照的正曜，再看辅佐煞化怎样加强、削弱或转化星系的本质，杂曜只作细节的佐证。
 - 每条论断都要给命盘依据：哪个宫、哪组星系、庙陷如何、哪颗化曜、哪些辅佐煞会照，或哪步大限、哪个流年的流曜与原局如何冲会。给不出依据的话不写，放在谁身上都成立的话不写。
 - 分清原局、大限与流年：原局定本质，大限与流年是环境与反应。推大限看大限流曜与原局的冲会，推流年看流年流曜与大限流曜的冲会，原局同名星曜除被两重流曜冲起外不必多论；同宫最重，对宫次之，三合再次之。
-- 参考资料是中州派讲义的节选，论断按它的口径；资料与你的既有认知冲突时以资料为准；资料没有覆盖的组合按中州派的思路推断，不引用其他派别的口诀。面向命主的文字里不出现「参考资料」「讲义」「原文」字样，不照抄资料，用自己的话写。
+- 参考资料是中州派讲义的节选，论断按它的口径；资料与你的既有认知冲突时以资料为准；资料没有覆盖的组合按中州派的思路推断，不引用其他派别的口诀。面向命主的文字里禁止提及资料的存在：不写「参考资料」「讲义」「原文」「资料显示」「据载」「书中说」等字样及同类说法，也不照抄原句；论断直接给结论与命盘依据，如同自己看盘所得。
 - 不承认宿命：只说某段时间会发生什么性质的事、原因在哪、可能怎样发展，并给出趋避之方。
 - 夫妻宫论配偶与婚姻，兼看命宫与福德宫的桃花诸曜；父母、兄弟、子女、交友各看本宫，田宅宫兼看家运与产业。
 - 大限流年只论命盘点名的那一步大限与两个流年，不推流月流日。
@@ -108,7 +108,11 @@ func ziweiUserPrompt(chart ziwei.Chart, lib *knowledge.Library, now time.Time) (
 		if flow, err = ziwei.DecadeFlow(chart, limit.Decade.Index); err != nil {
 			return "", err
 		}
-		_, _ = fmt.Fprintf(&b, "大限 %s（%d 到 %d 岁）：%s\n", flow.SixtyCycle, limit.Decade.StartAge, limit.Decade.EndAge, ziwei.FlowText(flow))
+		_, _ = fmt.Fprintf(
+			&b,
+			"大限 %s（%d 到 %d 岁）：十二宫：%s；%s\n",
+			flow.SixtyCycle, limit.Decade.StartAge, limit.Decade.EndAge, palaceLayoutText(flow.LifePalace), ziwei.FlowText(flow),
+		)
 	}
 	b.WriteString(yearLine(current))
 	b.WriteString(yearLine(next))
@@ -128,12 +132,23 @@ func ziweiUserPrompt(chart ziwei.Chart, lib *knowledge.Library, now time.Time) (
 	return b.String(), nil
 }
 
-// yearLine 一个流年的命宫、斗君、小限与流曜
+// yearLine 一个流年的命宫、斗君、小限、十二宫分布与流曜
 func yearLine(year ziwei.Year) string {
 	return fmt.Sprintf(
-		"流年 %d 年%s（虚岁 %d）：命宫在%s，斗君%s，小限%s；%s\n",
-		year.Year, year.SixtyCycle, year.Age, year.LifePalace, year.DouJun, year.MinorLimit, ziwei.FlowText(year.Flow),
+		"流年 %d 年%s（虚岁 %d）：命宫在%s，斗君%s，小限%s；十二宫：%s；%s\n",
+		year.Year, year.SixtyCycle, year.Age, year.LifePalace, year.DouJun, year.MinorLimit, palaceLayoutText(year.LifePalace), ziwei.FlowText(year.Flow),
 	)
+}
+
+// palaceLayoutText 十二宫自命宫逆布的紧凑罗列，如「命宫午 兄弟宫巳 夫妻宫辰 …」；
+// 大限、流年另立命宫时直接给出其余各宫的地支，不留给模型自己按逆布规则推算方向
+func palaceLayoutText(lifePalaceBranch string) string {
+	layout := ziwei.PalaceLayout(lifePalaceBranch)
+	parts := make([]string, 0, len(layout))
+	for _, p := range layout {
+		parts = append(parts, p.Name+p.Branch)
+	}
+	return strings.Join(parts, " ")
 }
 
 // ziweiDecadeClause 所处的大限，起限之前改为说明起限岁数
