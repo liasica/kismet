@@ -47,7 +47,7 @@ func infoOf(share report.Share) shareInfo {
 // shareRequest 开启分享或改密码
 //
 // 报告尚未保存时随请求带上体系、排盘输入与选项；客户端本地有解读正文时也带上，以它为准写进报告。
-// system 缺省按八字，兼容早期客户端
+// system 缺省时沿用库里这份报告已存的体系，报告尚未建档才落到八字，兼容早期客户端
 type shareRequest struct {
 	System   string          `json:"system"`
 	Password string          `json:"password"`
@@ -135,6 +135,23 @@ func (s *Server) handleGetShare(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, infoOf(*item.Share))
 }
 
+// resolveShareSystem 请求带 system 时直接用；不带时不能缺省按八字了事，
+// 要先看库里这份报告已存的体系，报告尚未建档（新报告）才落到八字，兼容早期客户端
+func (s *Server) resolveShareSystem(id, system string) (string, error) {
+	if system != "" {
+		return system, nil
+	}
+
+	existing, err := s.reports.Get(id)
+	if err != nil {
+		if errors.Is(err, report.ErrNotFound) {
+			return report.SystemBazi, nil
+		}
+		return "", err
+	}
+	return existing.System, nil
+}
+
 // handleCreateShare 开启分享或更新密码
 //
 // 报告尚未在服务端保存时（还没解读过），请求体里的 input 与 options 会先存成报告；
@@ -157,12 +174,18 @@ func (s *Server) handleCreateShare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Input != nil {
-		var options json.RawMessage
-		if options, err = validateForSystem(req.System, *req.Input, req.Options); err != nil {
+		var system string
+		if system, err = s.resolveShareSystem(id, req.System); err != nil {
 			writeError(w, err)
 			return
 		}
-		if err = s.reports.Upsert(id, systemOf(req.System), *req.Input, options); err != nil {
+
+		var options json.RawMessage
+		if options, err = validateForSystem(system, *req.Input, req.Options); err != nil {
+			writeError(w, err)
+			return
+		}
+		if err = s.reports.Upsert(id, system, *req.Input, options); err != nil {
 			writeError(w, err)
 			return
 		}

@@ -5,6 +5,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -72,12 +73,17 @@ type paipanRequest struct {
 }
 
 // decodeOptions 把原始 JSON 解成某个体系的选项补丁，没给或为 null 时返回 nil
+//
+// 禁止未知字段：不同体系的选项补丁字段集合可能互为子集，缺省体系或传错体系时，
+// 混进来的选项本应在这里报错，而不是被当成合法的另一体系选项悄悄解析成功
 func decodeOptions[T any](raw json.RawMessage) (*T, error) {
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil, nil
 	}
 	var patch T
-	if err := json.Unmarshal(raw, &patch); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&patch); err != nil {
 		return nil, badRequest("options 不是合法的选项对象")
 	}
 	return &patch, nil
