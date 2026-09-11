@@ -8,7 +8,7 @@
 
 | 项 | 选型 | 说明 |
 | --- | --- | --- |
-| 服务 | Go 1.27，标准库 `net/http` | 静态资源、八字排盘接口、紫微排盘引擎、DeepSeek 转发、报告与分享 |
+| 服务 | Go 1.27，标准库 `net/http` | 静态资源、八字排盘接口、紫微排盘引擎、紫微解读的知识库检索、DeepSeek 转发、报告与分享 |
 | 存储 | bbolt | 单文件键值库，存解读报告与分享设置，路径由 `DB_PATH` 指定 |
 | 构建 | Vite 8 + React 19 + TypeScript 6 | SPA，无 SSR |
 | 路由 | react-router 8 | 声明式 `BrowserRouter`，页面在 `web/app/src/pages/`：`/` 首页卡片、`/bazi` 表单、`/bazi/report` 排盘与解读、`/saved` 收藏、`/s/:hash` 分享页、`/admin` 后台的报告列表、`/admin/reports/:id` 后台的报告详情 |
@@ -24,21 +24,24 @@
 ## 目录结构
 
 ```
-main.go                入口，go:embed 内嵌 data/region 与 web/app/dist
-internal/bazi/         八字排盘的 Go 实现
-internal/birth/        共用的出生信息与时间校正
-internal/ziwei/        紫微斗数排盘的 Go 实现
-internal/fixturetest/  黄金基准的加载与逐字段比对，八字与紫微共用
-internal/region/       行政区划查询，从 fs.FS 读数据
-internal/report/       解读报告的持久化与分享：bbolt 存储、分享哈希、密码派生
-internal/httpapi/      HTTP 接口：排盘、区划、DeepSeek 解读转发、报告分享、SPA 静态资源
-data/region/           行政区划 JSON，Go 与 TypeScript 读同一份
-data/fixtures/         黄金基准 bazi-charts.json 与 ziwei-charts.json，约束两份排盘实现一致
-web/                   前端 pnpm 工作区
-web/core/              排盘引擎与区划查询，TypeScript，纯计算，浏览器与命令行直接引
-web/core/src/birth/    共用的出生信息与时间校正
-web/core/src/ziwei/    紫微斗数排盘
-web/app/               React SPA，本地排盘，只有命理解读调后端
+main.go                    入口，go:embed 内嵌 data/region 与 web/app/dist
+internal/bazi/             八字排盘的 Go 实现
+internal/birth/            共用的出生信息与时间校正
+internal/ziwei/            紫微斗数排盘的 Go 实现
+internal/ziwei/knowledge/  讲义切片的加载与按命盘检索
+internal/fixturetest/      黄金基准的加载与逐字段比对，八字与紫微共用
+internal/region/           行政区划查询，从 fs.FS 读数据
+internal/report/           解读报告的持久化与分享：bbolt 存储、分享哈希、密码派生
+internal/httpapi/          HTTP 接口：排盘、区划、DeepSeek 解读转发、报告分享、SPA 静态资源
+tools/ziweikb/             讲义抽取工具，依赖 pdftotext
+data/region/               行政区划 JSON，Go 与 TypeScript 读同一份
+data/fixtures/             黄金基准 bazi-charts.json 与 ziwei-charts.json，约束两份排盘实现一致
+data/ziwei/                讲义切片 knowledge.json，只进提示词
+web/                       前端 pnpm 工作区
+web/core/                  排盘引擎与区划查询，TypeScript，纯计算，浏览器与命令行直接引
+web/core/src/birth/        共用的出生信息与时间校正
+web/core/src/ziwei/        紫微斗数排盘
+web/app/                   React SPA，本地排盘，只有命理解读调后端
 ```
 
 排盘有两份实现（TS 与 Go），两套体系各一份基准，靠 `data/fixtures/bazi-charts.json` 与 `data/fixtures/ziwei-charts.json` 逐字段约束一致。改动任何一侧的排盘逻辑后必须执行 `make fixtures`（先由 TS 重新生成基准，再由 Go 侧比对）。
@@ -89,21 +92,26 @@ make fixtures   # 重新生成两套跨语言黄金基准并用 Go 侧比对
 
 ## 命理解读
 
-`POST /api/analyze` 收 `{"reportId", "input", "options"}`，服务端按输入排盘、拼出提示词，加上模型名转发给 DeepSeek 的 `chat/completions`，`stream: true`，把上游 SSE 逐行写回；思考模式下流里先出 `reasoning_content` 再出 `content`，服务端把思考过程按行打到控制台，前端只渲染正文，思考阶段显示「思考中」。提示词在 `internal/httpapi/prompt.go`：system 消息放角色与批命规则（按子平法先定旺衰、格局与用神再论事，以命盘为准不重新推算，每条论断给出命盘依据，分清命局与岁运，男命以财论妻、女命以官杀论夫，每节先结论后依据，健康只说方向，不写安慰话与免责声明，只用段落、列表与粗体），user 消息放命主信息、今天的日期（北京时间）、虚岁、所处大运、当前与下一个流年（以立春为界，由 `bazi.FortuneAt` 算）、`bazi.ToText` 带流年的文字命盘与章节清单：成人七节（命局总论、性格与天赋、事业与财运、婚姻与感情、健康、大运与流年、建议）2500 到 3500 字；虚岁 18 以下六节面向父母、不谈婚姻财运事业（命局总论、性格与天赋、健康与体质、学业与培养、大运与流年、给父母的建议）1800 到 2500 字。面向用户的页面不出现所用模型的名字，也不提供提示词的查看入口；模型名只在后台的报告详情里显示。
+排盘另有独立接口，不经过模型：`POST /api/bazi/paipan`、`GET /api/bazi/options`、`POST /api/ziwei/paipan`（`?format=text` 返回文字命盘）。
+
+八字接口 `POST /api/bazi/analyze` 收 `{"reportId", "input", "options"}`，服务端按输入排盘、拼出提示词，加上模型名转发给 DeepSeek 的 `chat/completions`，`stream: true`，把上游 SSE 逐行写回；思考模式下流里先出 `reasoning_content` 再出 `content`，服务端把思考过程按行打到控制台，前端只渲染正文，思考阶段显示「思考中」。提示词在 `internal/httpapi/prompt_bazi.go`：system 消息放角色与批命规则（按子平法先定旺衰、格局与用神再论事，以命盘为准不重新推算，每条论断给出命盘依据，分清命局与岁运，男命以财论妻、女命以官杀论夫，每节先结论后依据，健康只说方向，不写安慰话与免责声明，只用段落、列表与粗体），user 消息放命主信息、今天的日期（北京时间）、虚岁、所处大运、当前与下一个流年（以立春为界，由 `bazi.FortuneAt` 算）、`bazi.ToText` 带流年的文字命盘与章节清单：成人七节（命局总论、性格与天赋、事业与财运、婚姻与感情、健康、大运与流年、建议）2500 到 3500 字；虚岁 18 以下六节面向父母、不谈婚姻财运事业（命局总论、性格与天赋、健康与体质、学业与培养、大运与流年、给父母的建议）1800 到 2500 字。面向用户的页面不出现所用模型的名字，也不提供提示词的查看入口；模型名只在后台的报告详情里显示。
+
+紫微接口 `POST /api/ziwei/analyze`，收同样的 `{"reportId", "input", "options"}`，`options` 是紫微选项，提示词在 `internal/httpapi/prompt_ziwei.go`：system 消息放中州派批命规则（先看父母宫田宅宫、命宫福德宫合看、以星系论、分清原局大限流年、按参考资料口径、不承认宿命），user 消息放命主信息、今天、虚岁、所处大限与当前下一流年、`<命盘>` 文字命盘加大限流曜与流年流曜 `</命盘>`、`<参考资料>` 按命盘从知识库选出的讲义切片（命宫星系、命宫正曜、生年大限流年四化、十二宫宫垣论、三方四正的辅佐煞对星，总量 45000 字以内）`</参考资料>`、章节清单：成人八节 2500 到 3500 字，未成年人六节 1800 到 2500 字。
 
 带 `reportId` 时服务端在转发前把排盘输入与选项存成报告，流结束（含客户端中途断开）后把已生成的正文写回同一份，`reportId` 由前端在提交表单时生成（128 位随机数的 32 位十六进制），持有 id 即可管理这份报告的分享。
 
 ## 分享
 
-- 链接：`POST /api/reports/{id}/share` 收 `{"password", "input", "options", "analysis"}` 开启分享或改密码，返回 `{"hash", "locked"}`；`GET` 查状态，`DELETE` 取消。报告尚未解读时随请求带上的 `input` 与 `options` 会先存成报告，`analysis` 非空时以它为准写入正文，前端每次创建或改密码都带上本地最新的解读
-- 查看：`GET /api/shares/{hash}` 未设密码直接返回 `{"locked": false, "report": {input, options, analysis, createdAt, updatedAt}}`，设了密码只返回 `{"locked": true}`，再 `POST /api/shares/{hash}/unlock` 收 `{"password"}` 换正文；同一分享连续输错 5 次密码冷却 30 秒
+- 链接：`POST /api/reports/{id}/share` 收 `{"system", "password", "input", "options", "analysis"}` 开启分享或改密码，返回 `{"hash", "locked"}`；`GET` 查状态，`DELETE` 取消。`system` 缺省 `bazi`，兼容早期客户端；报告尚未解读时随请求带上的 `input` 与 `options` 会先存成报告，`options` 按体系原样透传，`analysis` 非空时以它为准写入正文，前端每次创建或改密码都带上本地最新的解读
+- 查看：`GET /api/shares/{hash}` 未设密码直接返回 `{"locked": false, "report": {system, input, options, analysis, createdAt, updatedAt}}`，设了密码只返回 `{"locked": true}`，再 `POST /api/shares/{hash}/unlock` 收 `{"password"}` 换正文；同一分享连续输错 5 次密码冷却 30 秒
 - 分享哈希是 8 字节随机数的 base64url 编码；密码只存 PBKDF2-SHA256 的盐与派生结果，路径不合格式一律按 404 处理
+- 存储的 `Report` 带 `system` 字段，早期记录没有这个字段，读出时按 `bazi` 补上
 - 前端 `/s/:hash` 取到 `input` 与 `options` 后在本地重新排盘，接口层不算盘；报告页头部的「分享」对话框分「链接」「图片」两页，图片由 `web/app/src/lib/poster.ts` 用 Canvas 画成长图：命盘、五行与完整解读正文，正文按自带的简易 Markdown 排版（标题、段落、列表、引用、表格、粗体），颜色取当前主题的 CSS 变量，有分享链接时附二维码（`uqr`）；先空跑一遍量出总高度，画布总像素压在 1600 万以内，超长解读自动降低导出倍率
 
 ## 后台管理
 
 - 密码是环境变量 `ADMIN_PASSWORD`，未设置时后台接口返回 503；前端 `/admin` 输入后放在 sessionStorage，关掉标签页即失效，每次请求以 `Authorization: Bearer <密码>` 携带，密码限 ASCII 可见字符
-- `GET /api/admin/reports?offset=&limit=` 按创建时间倒序分页列出全部报告，返回 `{"total", "reports": [{id, createdAt, updatedAt, input, model, analysisRunes, share}]}`，不带正文，`limit` 默认 50、最大 200；`GET /api/admin/reports/{id}` 返回单份报告的全部内容，比列表项多 `options` 与 `analysis`。密码缺失或不正确返回 401，连续输错 5 次冷却 30 秒，计数不按客户端区分
+- `GET /api/admin/reports?offset=&limit=` 按创建时间倒序分页列出全部报告，返回 `{"total", "reports": [{id, createdAt, updatedAt, system, input, model, analysisRunes, share}]}`，不带正文，`limit` 默认 50、最大 200；`GET /api/admin/reports/{id}` 返回单份报告的全部内容，比列表项多 `options` 与 `analysis`。密码缺失或不正确返回 401，连续输错 5 次冷却 30 秒，计数不按客户端区分
 - 前端 `/admin` 以表格列出报告（创建时间、姓名、出生时刻、出生地、解读字数、分享状态），页码在查询参数 `page`，点一行进 `/admin/reports/:id`：先列出报告 id、时间、模型与分享链接，再按保存的输入在本地重新排盘并展示解读正文；分享页与后台详情共用 `web/app/src/components/report-view.tsx`。头部导航不放后台入口，直接访问路径
 
 ## 开发约定
@@ -117,6 +125,7 @@ make fixtures   # 重新生成两套跨语言黄金基准并用 Go 侧比对
 - 弹层内的可滚动列表不显示滚动条，用 `.time-list` 那样的渐隐边缘提示可滚动
 - 主题切换由 `web/app/src/components/theme-provider.tsx` 提供，按 `d` 键在明暗之间切换
 - 提交前 `make lint` 必须无 issue，`make test` 必须全绿
+- 讲义切片只进提示词，任何接口响应、日志与界面都不输出它；`docs/*.pdf` 不入库，重新抽取用 `go run ./tools/ziweikb`
 
 ## 命理算法约束
 

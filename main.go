@@ -3,7 +3,8 @@
 // 单个二进制：前端构建产物与区划数据都用 `go:embed` 编进来。
 // 排盘算法在 internal/bazi，与 Web 端的 TypeScript 实现逐字段一致；
 // 区划数据在 internal/region，与 Web 端读同一份 JSON；
-// 命理解读在 internal/httpapi 转发给 DeepSeek，密钥只留在服务端
+// 命理解读在 internal/httpapi 转发给 DeepSeek，密钥只留在服务端；
+// 紫微解读的讲义切片在 data/ziwei，随二进制内嵌
 package main
 
 import (
@@ -18,6 +19,7 @@ import (
 	"github.com/liasica/kismet/internal/httpapi"
 	"github.com/liasica/kismet/internal/region"
 	"github.com/liasica/kismet/internal/report"
+	"github.com/liasica/kismet/internal/ziwei/knowledge"
 )
 
 // 读写超时，排盘是纯计算几毫秒就够；解读接口流式输出时间长，自行延长写超时
@@ -28,6 +30,9 @@ const (
 
 //go:embed data/region
 var regionData embed.FS
+
+//go:embed data/ziwei
+var ziweiData embed.FS
 
 //go:embed all:web/app/dist
 var webDist embed.FS
@@ -52,12 +57,24 @@ func main() {
 		fail("打开数据文件失败 %v", err)
 	}
 
+	knowledgeFS, err := fs.Sub(ziweiData, "data/ziwei")
+	if err != nil {
+		fail("定位知识库失败 %v", err)
+	}
+	lib, err := knowledge.Load(knowledgeFS)
+	if err != nil {
+		fail("载入知识库失败 %v", err)
+	}
+	if missing := lib.Validate(); len(missing) > 0 {
+		fail("知识库缺 %d 个键，先跑 go run ./tools/ziweikb", len(missing))
+	}
+
 	deepSeek := httpapi.DeepSeekConfigFromEnv()
 	admin := adminPassword()
 	addr := ":" + port()
 	server := &http.Server{
 		Addr:         addr,
-		Handler:      httpapi.NewServer(store, deepSeek, reports, admin, webFS).Handler(),
+		Handler:      httpapi.NewServer(store, deepSeek, reports, lib, admin, webFS).Handler(),
 		ReadTimeout:  readTimeout,
 		WriteTimeout: writeTimeout,
 	}

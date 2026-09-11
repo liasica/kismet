@@ -19,6 +19,7 @@ RUN go mod download
 COPY main.go ./
 COPY internal ./internal
 COPY data/region ./data/region
+COPY data/ziwei ./data/ziwei
 COPY --from=web /src/web/app/dist ./web/app/dist
 RUN CGO_ENABLED=0 go build -trimpath -ldflags '-s -w' -o /out/kismet .
 

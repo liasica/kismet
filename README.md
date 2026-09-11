@@ -79,9 +79,11 @@ Go 服务只做请求解析与转发，不含排盘逻辑。环境变量：
 | 方法与路径 | 说明 |
 | --- | --- |
 | `GET /health` | 存活检查 |
-| `GET /api/options` | 选项默认值与可用的五行评分策略，客户端不必硬编码 |
-| `POST /api/paipan` | 排盘，加 `?format=text` 返回竖排文字 |
-| `POST /api/analyze` | 命理解读，收 `{"reportId", "input", "options"}`，服务端排盘并拼提示词，以 SSE 流式返回 DeepSeek 的回复；带 `reportId` 时输入与解读正文存成报告 |
+| `GET /api/bazi/options` | 八字选项默认值与可用的五行评分策略，客户端不必硬编码 |
+| `POST /api/bazi/paipan` | 八字排盘，加 `?format=text` 返回竖排文字 |
+| `POST /api/ziwei/paipan` | 紫微排盘，加 `?format=text` 返回文字命盘 |
+| `POST /api/bazi/analyze` | 八字解读，收 `{"reportId", "input", "options"}`，服务端排盘并拼提示词，以 SSE 流式返回 DeepSeek 的回复；带 `reportId` 时输入与解读正文存成报告 |
+| `POST /api/ziwei/analyze` | 紫微解读，收同样的请求体 |
 | `GET /api/reports/{id}/share` | 报告的分享状态，未分享返回 404 |
 | `POST /api/reports/{id}/share` | 开启分享或改密码，收 `{"password", "input", "options", "analysis"}`，返回 `{"hash", "locked"}` |
 | `DELETE /api/reports/{id}/share` | 取消分享 |
@@ -98,7 +100,7 @@ Go 服务只做请求解析与转发，不含排盘逻辑。环境变量：
 排盘请求的出生地可以传 `regionCode` 让服务端查经纬度，也可以直接传 `longitude`：
 
 ```bash
-curl -X POST http://localhost:36579/api/paipan \
+curl -X POST http://localhost:36579/api/bazi/paipan \
   -H 'Content-Type: application/json' \
   -d '{
     "year": 1990, "month": 5, "day": 3, "hour": 12, "minute": 30,
