@@ -8,9 +8,12 @@
 import { parseArgs } from "node:util"
 
 import type { Gender } from "../src/birth/types"
-import { ziweiPaipan } from "../src/ziwei/chart"
-import { ziweiLimitAt, ziweiYearly } from "../src/ziwei/fortune"
-import { ziweiToText } from "../src/ziwei/text"
+import {
+  ziweiLimitAt,
+  ziweiPaipan,
+  ziweiToText,
+  ziweiYearly,
+} from "../src/ziwei"
 
 const USAGE = `用法：pnpm ziwei [选项]
 
@@ -96,11 +99,11 @@ if (values.json) {
 } else {
   process.stdout.write(`${ziweiToText(chart)}\n`)
   if (values.year !== undefined) {
-    const today = new Date()
+    // 取年中而不是今天，免得在农历新年前后跑出不同的农历年
     const limit = ziweiLimitAt(chart, {
       year: Number(values.year),
-      month: today.getMonth() + 1,
-      day: today.getDate(),
+      month: 7,
+      day: 1,
     })
     const yearly = ziweiYearly(chart, limit.lunarYear)
     process.stdout.write(
