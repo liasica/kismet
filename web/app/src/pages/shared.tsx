@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { errorMessage } from "@/lib/api"
 import { fetchShared, unlockShared, type SharedReport } from "@/lib/share"
+import { SYSTEMS, isSystem } from "@/lib/system"
 
 type State =
   | { kind: "loading" }
@@ -47,17 +48,26 @@ export function SharedPage() {
     }
   }, [hash])
 
+  // 报告取回来之前不知道体系，标题先用通称
+  const system =
+    state.kind === "ready" && isSystem(state.report.system)
+      ? state.report.system
+      : undefined
+  const meta = system
+    ? SYSTEMS[system]
+    : { eyebrow: "Shared Report", title: "分享的报告", path: "/" }
+
   return (
     <section className="flex flex-col gap-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <span className="text-[0.625rem] font-semibold tracking-widest text-muted-foreground uppercase">
-            Four Pillars
+            {meta.eyebrow}
           </span>
-          <h1 className="font-serif text-2xl tracking-wide">八字命理</h1>
+          <h1 className="font-serif text-2xl tracking-wide">{meta.title}</h1>
         </div>
         <Link
-          to="/bazi"
+          to={meta.path}
           className={buttonVariants({ variant: "outline", size: "sm" })}
         >
           我也排一盘
@@ -76,7 +86,7 @@ export function SharedPage() {
           <p className="text-sm text-muted-foreground">
             链接不存在，或分享已被取消。
           </p>
-          <Link to="/bazi" className={buttonVariants({ size: "sm" })}>
+          <Link to="/" className={buttonVariants({ size: "sm" })}>
             去排盘
             <RiArrowRightLine data-icon="inline-end" />
           </Link>
@@ -90,6 +100,7 @@ export function SharedPage() {
       )}
       {state.kind === "ready" && (
         <ReportView
+          system={system ?? "bazi"}
           input={state.report.input}
           options={state.report.options}
           analysis={state.report.analysis}

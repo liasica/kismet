@@ -4,15 +4,16 @@ import remarkGfm from "remark-gfm"
 
 import { ChartView } from "@/components/chart-view"
 import { Separator } from "@/components/ui/separator"
-import { baziPaipan } from "@kismet/core"
-import type { BaziChart, BaziOptions, PaipanInput } from "@kismet/core"
+import { ZiweiChartView } from "@/components/ziwei-chart-view"
+import { baziPaipan, ziweiPaipan } from "@kismet/core"
+import type { BaziOptions, PaipanInput, ZiweiOptions } from "@kismet/core"
 import { errorMessage } from "@/lib/api"
 import { formatSavedAt } from "@/lib/reports"
-import type { ReportOptions } from "@/lib/system"
+import type { ReportOptions, System } from "@/lib/system"
 
 interface ReportViewProps {
+  system: System
   input: PaipanInput
-  /** 服务端保存的报告只有八字会走到这里，紫微斗数的报告页在另外的页面呈现 */
   options: ReportOptions
   /** 解读正文 Markdown，空即尚未解读 */
   analysis: string
@@ -20,31 +21,52 @@ interface ReportViewProps {
   updatedAt: string
 }
 
-/** 服务端保存的报告：按输入与选项在本地重新排盘，下面接保存的解读 */
+type Rendered =
+  | { node: React.ReactNode; error?: undefined }
+  | { node?: undefined; error: string }
+
+/** 按体系在本地重新排盘并渲染命盘 */
+function renderChart(
+  system: System,
+  input: PaipanInput,
+  options: ReportOptions
+): Rendered {
+  try {
+    if (system === "ziwei") {
+      return {
+        node: (
+          <ZiweiChartView chart={ziweiPaipan(input, options as ZiweiOptions)} />
+        ),
+      }
+    }
+    return {
+      node: <ChartView chart={baziPaipan(input, options as BaziOptions)} />,
+    }
+  } catch (e) {
+    return { error: errorMessage(e) }
+  }
+}
+
+/** 服务端保存的报告：按体系、输入与选项在本地重新排盘，下面接保存的解读 */
 export function ReportView({
+  system,
   input,
   options,
   analysis,
   updatedAt,
 }: ReportViewProps) {
-  const result = React.useMemo<
-    | { chart: BaziChart; error?: undefined }
-    | { chart?: undefined; error: string }
-  >(() => {
-    try {
-      return { chart: baziPaipan(input, options as BaziOptions) }
-    } catch (e) {
-      return { error: errorMessage(e) }
-    }
-  }, [input, options])
+  const rendered = React.useMemo(
+    () => renderChart(system, input, options),
+    [system, input, options]
+  )
 
-  if (!result.chart) {
-    return <p className="text-sm text-destructive">{result.error}</p>
+  if (rendered.error !== undefined) {
+    return <p className="text-sm text-destructive">{rendered.error}</p>
   }
 
   return (
     <>
-      <ChartView chart={result.chart} />
+      {rendered.node}
       <Separator />
       <section className="flex flex-col gap-6">
         <div className="flex flex-col gap-1">

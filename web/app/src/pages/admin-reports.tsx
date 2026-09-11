@@ -29,6 +29,7 @@ import {
 import { errorMessage } from "@/lib/api"
 import { formatSavedAt } from "@/lib/reports"
 import type { ShareInfo } from "@/lib/share"
+import { SYSTEMS } from "@/lib/system"
 
 /**
  * 后台首页：服务端保存的全部报告，按创建时间倒序分页，点一行进详情
@@ -132,6 +133,7 @@ function ReportTable({ page, onGoto }: ReportTableProps) {
             <TableRow>
               <TableHead>创建时间</TableHead>
               <TableHead>姓名</TableHead>
+              <TableHead>体系</TableHead>
               <TableHead>出生时刻</TableHead>
               <TableHead>出生地</TableHead>
               <TableHead>解读</TableHead>
@@ -161,6 +163,9 @@ function ReportTable({ page, onGoto }: ReportTableProps) {
                       {report.input.gender === "male" ? "乾造" : "坤造"}
                     </Badge>
                   </span>
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {SYSTEMS[report.system].title}
                 </TableCell>
                 <TableCell className="tabular-nums">
                   {formatBirth(report.input)}
