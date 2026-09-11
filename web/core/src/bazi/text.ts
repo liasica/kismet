@@ -65,7 +65,7 @@ export function baziToText(
 
   // 头部
   const genderText = chart.gender === "male" ? "乾造" : "坤造"
-  lines.push(`${chart.name ?? "未具名"}  ${genderText}`)
+  lines.push(`${chart.name || "未具名"}  ${genderText}`)
   lines.push(`阳历：${chart.time.input}`)
   if (chart.time.standard !== chart.time.input) {
     lines.push(

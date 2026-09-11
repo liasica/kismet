@@ -23,6 +23,7 @@ func TestChartMatchesTypeScript(t *testing.T) {
 				t.Fatalf("排盘失败：%v", err)
 			}
 			fixturetest.Compare(t, chart, f.Chart)
+			fixturetest.CompareText(t, ziwei.ToText(chart), f.Text)
 		})
 	}
 }

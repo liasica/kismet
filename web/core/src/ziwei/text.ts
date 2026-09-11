@@ -28,7 +28,7 @@ function majorText(chart: ZiweiChart, palace: ZiweiPalace): string {
 export function ziweiToText(chart: ZiweiChart): string {
   const lines: string[] = []
   const genderText = chart.gender === "male" ? "乾造" : "坤造"
-  lines.push(`${chart.name ?? "未具名"}  ${genderText}  紫微斗数`)
+  lines.push(`${chart.name || "未具名"}  ${genderText}  紫微斗数`)
   lines.push(`阳历：${chart.time.input}`)
   if (chart.time.standard !== chart.time.input) {
     lines.push(

@@ -22,6 +22,8 @@ type Fixture[I, O any] struct {
 	Input   I               `json:"input"`
 	Options O               `json:"options"`
 	Chart   json.RawMessage `json:"chart"`
+	// Text TS 侧的文字命盘，与本实现的 ToText 逐字比对
+	Text string `json:"text"`
 }
 
 // floatTolerance 浮点比较的容差，两边的 round2 结果应当完全相同，留一点余量兜住表示误差
@@ -81,6 +83,14 @@ func Compare(t *testing.T, got any, want json.RawMessage) {
 	}
 	if len(diffs) > limit {
 		t.Errorf("另有 %d 处差异未列出", len(diffs)-limit)
+	}
+}
+
+// CompareText 比对文字命盘是否与基准逐字一致，不一致时把两侧全文都打印出来便于对照
+func CompareText(t *testing.T, got, want string) {
+	t.Helper()
+	if got != want {
+		t.Errorf("文字命盘与基准不一致：\n--- 本实现 ---\n%s\n--- 基准 ---\n%s", got, want)
 	}
 }
 

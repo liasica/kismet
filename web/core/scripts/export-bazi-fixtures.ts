@@ -12,7 +12,7 @@
 import { writeFileSync } from "node:fs"
 import { SolarTerm, SolarTime } from "tyme4ts"
 
-import { baziPaipan } from "../src/bazi"
+import { baziPaipan, baziToText } from "../src/bazi"
 import type { PaipanInput } from "../src/birth/types"
 import type { BaziOptions } from "../src/bazi/types"
 
@@ -22,6 +22,8 @@ interface Fixture {
   input: PaipanInput
   options: Partial<BaziOptions>
   chart: unknown
+  /** 文字命盘，只带大运不带流年流月，两侧的 ToText 必须逐字一致 */
+  text: string
 }
 
 const fixtures: Fixture[] = []
@@ -31,11 +33,13 @@ function add(
   input: PaipanInput,
   options: Partial<BaziOptions> = {}
 ) {
+  const chart = baziPaipan(input, options)
   fixtures.push({
     label,
     input,
     options,
-    chart: JSON.parse(JSON.stringify(baziPaipan(input, options))),
+    chart: JSON.parse(JSON.stringify(chart)),
+    text: baziToText(chart),
   })
 }
 

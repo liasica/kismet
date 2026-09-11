@@ -13,6 +13,7 @@ import { writeFileSync } from "node:fs"
 
 import type { PaipanInput } from "../src/birth/types"
 import { ziweiPaipan } from "../src/ziwei/chart"
+import { ziweiToText } from "../src/ziwei/text"
 import type { ZiweiOptions } from "../src/ziwei/types"
 
 interface Fixture {
@@ -21,6 +22,8 @@ interface Fixture {
   input: PaipanInput
   options: Partial<ZiweiOptions>
   chart: unknown
+  /** 文字命盘，两侧的 ToText 必须逐字一致 */
+  text: string
 }
 
 const fixtures: Fixture[] = []
@@ -30,11 +33,13 @@ function add(
   input: PaipanInput,
   options: Partial<ZiweiOptions> = {}
 ) {
+  const chart = ziweiPaipan(input, options)
   fixtures.push({
     label,
     input,
     options,
-    chart: JSON.parse(JSON.stringify(ziweiPaipan(input, options))),
+    chart: JSON.parse(JSON.stringify(chart)),
+    text: ziweiToText(chart),
   })
 }
 
