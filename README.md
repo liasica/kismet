@@ -25,7 +25,7 @@ web/app/           React SPA，直接引 core 在浏览器本地排盘，只有�
 
 ## 一致性怎么保证
 
-`data/fixtures/charts.json` 由 TS 侧生成，里面是 54 个覆盖各分支的输入连同它们算出的完整 `Chart`。Go 的 `TestChartMatchesTypeScript` 读同一份文件，跑同样的输入，把结果序列化后与基准逐字段比对，差异会精确报出 JSON 路径。
+`data/fixtures/bazi-charts.json` 与 `data/fixtures/ziwei-charts.json` 由 TS 侧生成，每条是一组覆盖某个分支的输入连同它算出的完整命盘。Go 的 `TestChartMatchesTypeScript` 读同一份文件，跑同样的输入，把结果序列化后与基准逐字段比对，差异会精确报出 JSON 路径。
 
 改动任何一侧的排盘逻辑后：
 

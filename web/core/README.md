@@ -8,7 +8,7 @@
 | `@kismet/core` | 共用出生信息处理，`src/birth/` |
 | `@kismet/core/region` | 中国行政区划查询，`src/region/` |
 
-数据本体放在仓库根的 `data/`，是语言中立的 JSON，Go 服务端读同一份：`data/region/` 是区划，`data/fixtures/charts.json` 是约束两份实现一致的黄金基准。
+数据本体放在仓库根的 `data/`，是语言中立的 JSON，Go 服务端读同一份：`data/region/` 是区划，`data/fixtures/` 下按体系分的 `bazi-charts.json` 与 `ziwei-charts.json` 是约束两份实现一致的黄金基准。
 
 ## 八字排盘
 
@@ -208,7 +208,7 @@ pnpm test
 约束方式是黄金基准：
 
 ```bash
-pnpm fixtures      # 本包生成仓库根 data/fixtures/charts.json，54 个用例连同完整 BaziChart
+pnpm fixtures      # 本包生成两份基准，八字 54 个用例、紫微 75 个用例，各连同完整命盘
 go test ./...      # 在仓库根运行，Go 侧读同一份文件跑同样输入，逐字段比对
 ```
 
