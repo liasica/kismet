@@ -86,7 +86,7 @@ Go 服务只做请求解析与转发，不含排盘逻辑。环境变量：
 | `POST /api/bazi/analyze` | 八字解读，收 `{"reportId", "input", "options"}`，服务端排盘并拼提示词，以 SSE 流式返回 DeepSeek 的回复；带 `reportId` 时输入与解读正文存成报告 |
 | `POST /api/ziwei/analyze` | 紫微解读，收同样的请求体 |
 | `GET /api/reports/{id}/share` | 报告的分享状态，未分享返回 404 |
-| `POST /api/reports/{id}/share` | 开启分享或改密码，收 `{"password", "input", "options", "analysis"}`，返回 `{"hash", "locked"}` |
+| `POST /api/reports/{id}/share` | 开启分享或改密码，收 `{"system", "password", "input", "options", "analysis"}`，返回 `{"hash", "locked"}` |
 | `DELETE /api/reports/{id}/share` | 取消分享 |
 | `GET /api/shares/{hash}` | 查看分享，设了密码只返回 `{"locked": true}` |
 | `POST /api/shares/{hash}/unlock` | 收 `{"password"}`，密码正确返回报告内容 |

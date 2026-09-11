@@ -48,7 +48,7 @@ web/app/                   React SPA，本地排盘，只有命理解读调后�
 
 前端把仓库根的 `data/` 当作工作区外的资源引用：TS 侧用相对路径 `../../../../data/region/...` import，Vite 开发服务器在 `web/app/vite.config.ts` 的 `server.fs.allow` 里放行了该目录。
 
-Web 端的路径别名 `@/` 指向 `web/app/src/`，在 `web/app/vite.config.ts` 与 `web/app/tsconfig.app.json` 两处声明，改动需同步。跨包引用走包名 `@kismet/core` 与 `@kismet/core/region`，不要用相对路径穿透到别的包；根入口导出共用层与两套命理体系，对外名字按体系加前缀（`bazi` 与 `ziwei`），共用的不加前缀。
+Web 端的路径别名 `@/` 指向 `web/app/src/`，在 `web/app/vite.config.ts` 与 `web/app/tsconfig.app.json` 两处声明，改动需同步。跨包引用走包名 `@kismet/core` 与 `@kismet/core/region`，不要用相对路径穿透到别的包；根入口导出共用层与两套命理体系；两套体系都有的概念按体系加前缀（`baziPaipan` 与 `ziweiPaipan`、`BaziChart` 与 `ZiweiChart`、`BaziOptions` 与 `ZiweiOptions`、`baziToText` 与 `ziweiToText`），共用的不加前缀，体系内部的细节类型不从根入口导出。
 
 字体细节：思源宋体走 `@fontsource-variable/noto-serif-sc`，按 unicode-range 切成 101 个分片，浏览器只取命中的片，单片约 60~100 KB。中文挂在 `--font-sans` 与 `--font-heading` 的回退位，靠拉丁字体不含汉字字形自然回落；整段走宋体用 `--font-serif`。Oxanium 的 `@font-face` 在 `web/app/src/index.css` 里自行声明而不 import 字体包的 CSS，用 `ascent-override`／`descent-override` 把上伸／下伸定为 86%／14%，让回落到宋体的汉字与拉丁大写在行框里居中；升级字体包版本时同步其 `unicode-range`。生僻字（卦名、神煞）分散在多个分片，字符面铺开时首屏字体流量可达 1 MB 量级。
 
@@ -127,7 +127,7 @@ make fixtures   # 重新生成两套跨语言黄金基准并用 Go 侧比对
 - 弹层内的可滚动列表不显示滚动条，用 `.time-list` 那样的渐隐边缘提示可滚动
 - 主题切换由 `web/app/src/components/theme-provider.tsx` 提供，按 `d` 键在明暗之间切换
 - 提交前 `make lint` 必须无 issue，`make test` 必须全绿
-- 讲义切片只进提示词，任何接口响应、日志与界面都不输出它；`docs/*.pdf` 不入库，重新抽取用 `go run ./tools/ziweikb`
+- 讲义切片只进提示词：任何接口响应、日志与界面都不输出原文，`docs/*.pdf` 不入库，重新抽取用 `go run ./tools/ziweikb`。模型按切片的口径批命，解读正文里会有对讲义的改写复述，提示词要求不照抄原句，这是这套做法的边界
 
 ## 命理算法约束
 
