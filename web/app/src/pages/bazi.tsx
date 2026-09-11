@@ -5,10 +5,11 @@ import { BaziOptionsFields } from "@/components/bazi-options-fields"
 import { useBaziSession } from "@/components/bazi-session"
 import { BirthForm } from "@/components/birth-form"
 import { baziPaipan, type BaziOptions } from "@kismet/core"
-import { INITIAL_OPTIONS, toPaipanInput } from "@/lib/bazi"
+import { INITIAL_BAZI_OPTIONS } from "@/lib/bazi"
 import {
   INITIAL_BIRTH_INFO,
   parseMoment,
+  toPaipanInput,
   type BirthInfo,
 } from "@/lib/birth-info"
 import { newReportId } from "@/lib/reports"
@@ -23,7 +24,7 @@ export function BaziPage() {
     editing ? session.birth : INITIAL_BIRTH_INFO
   )
   const [options, setOptions] = React.useState<BaziOptions>(
-    editing ? session.options : INITIAL_OPTIONS
+    editing ? session.options : INITIAL_BAZI_OPTIONS
   )
   const [error, setError] = React.useState<string>()
 

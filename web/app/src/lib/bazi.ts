@@ -1,15 +1,8 @@
 /**
- * 八字模块的默认选项与输入组装
+ * 八字模块的默认选项与配色
  */
 
-import type { FiveElement, PaipanInput, BaziOptions } from "@kismet/core"
-
-import {
-  birthplaceOf,
-  locationNameOf,
-  parseMoment,
-  type BirthInfo,
-} from "@/lib/birth-info"
+import type { BaziOptions, FiveElement } from "@kismet/core"
 
 /** 五行对应的文字色，天干地支按所属五行着色 */
 export const ELEMENT_TEXT: Record<FiveElement, string> = {
@@ -20,7 +13,7 @@ export const ELEMENT_TEXT: Record<FiveElement, string> = {
   水: "text-water",
 }
 
-export const INITIAL_OPTIONS: BaziOptions = {
+export const INITIAL_BAZI_OPTIONS: BaziOptions = {
   useTrueSolarTime: true,
   useDaylightSaving: false,
   lateZiAsNextDay: false,
@@ -28,19 +21,4 @@ export const INITIAL_OPTIONS: BaziOptions = {
   shenShaSkipBasePillar: false,
   maxAge: 100,
   elementStrategy: "weighted",
-}
-
-/** 表单取值转排盘输入，出生时间或性别缺失返回 `undefined` */
-export function toPaipanInput(info: BirthInfo): PaipanInput | undefined {
-  const moment = parseMoment(info.date, info.time)
-  if (!moment || !info.gender) return undefined
-  const place = birthplaceOf(info)
-  return {
-    ...moment,
-    gender: info.gender,
-    name: info.name.trim() || undefined,
-    location: locationNameOf(info),
-    longitude: place?.lng,
-    latitude: place?.lat,
-  }
 }

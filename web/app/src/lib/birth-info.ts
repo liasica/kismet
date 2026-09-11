@@ -4,7 +4,7 @@
  * 与组件分开放，组件文件只导出组件，避免破坏 React 的 fast refresh
  */
 
-import type { Gender } from "@kismet/core"
+import type { Gender, PaipanInput } from "@kismet/core"
 import type { Region } from "@kismet/core/region"
 
 export interface BirthInfo {
@@ -78,4 +78,19 @@ export function locationNameOf(info: BirthInfo): string | undefined {
   return info.region.length > 0
     ? info.region.map((r) => r.name).join(" ")
     : undefined
+}
+
+/** 表单取值转排盘输入，各体系共用；出生时间或性别缺失返回 `undefined` */
+export function toPaipanInput(info: BirthInfo): PaipanInput | undefined {
+  const moment = parseMoment(info.date, info.time)
+  if (!moment || !info.gender) return undefined
+  const place = birthplaceOf(info)
+  return {
+    ...moment,
+    gender: info.gender,
+    name: info.name.trim() || undefined,
+    location: locationNameOf(info),
+    longitude: place?.lng,
+    latitude: place?.lat,
+  }
 }

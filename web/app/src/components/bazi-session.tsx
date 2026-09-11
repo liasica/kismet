@@ -2,7 +2,7 @@
 import * as React from "react"
 
 import type { BaziOptions } from "@kismet/core"
-import { INITIAL_OPTIONS } from "@/lib/bazi"
+import { INITIAL_BAZI_OPTIONS } from "@/lib/bazi"
 import { INITIAL_BIRTH_INFO, type BirthInfo } from "@/lib/birth-info"
 
 /** 八字模块最近一次提交的表单值与提交状态，表单页提交、收藏页打开报告时写，报告页读 */
@@ -19,7 +19,7 @@ const STORAGE_KEY = "kismet.bazi"
 
 const INITIAL: BaziSession = {
   birth: INITIAL_BIRTH_INFO,
-  options: INITIAL_OPTIONS,
+  options: INITIAL_BAZI_OPTIONS,
   submittedAt: 0,
   reportId: "",
 }

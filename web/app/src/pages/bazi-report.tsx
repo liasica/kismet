@@ -14,7 +14,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { baziPaipan } from "@kismet/core"
 import type { BaziChart } from "@kismet/core"
-import { toPaipanInput } from "@/lib/bazi"
+import { toPaipanInput } from "@/lib/birth-info"
 import {
   deleteReport,
   isReportId,
