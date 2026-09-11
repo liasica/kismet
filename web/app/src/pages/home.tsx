@@ -80,8 +80,8 @@ export function HomePage() {
         <ModuleCard
           eyebrow="Purple Star"
           title="紫微斗数"
-          description="以农历生时安命身十二宫，布紫微、天府诸星，按宫位论命。"
-          status="待实现"
+          description="以农历生时安命身十二宫，布紫微、天府诸星，按中州派论星系与宫垣，含大限流年。"
+          to="/ziwei"
           figure={<PalaceFigure />}
         />
       </div>

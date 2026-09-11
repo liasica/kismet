@@ -11,6 +11,8 @@ import { BaziReportPage } from "@/pages/bazi-report"
 import { HomePage } from "@/pages/home"
 import { SavedPage } from "@/pages/saved"
 import { SharedPage } from "@/pages/shared"
+import { ZiweiPage } from "@/pages/ziwei"
+import { ZiweiReportPage } from "@/pages/ziwei-report"
 
 /** 所有页面共用这一个容器的宽度，页面内不再各自设最大宽度 */
 export function App() {
@@ -50,6 +52,8 @@ export function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/bazi" element={<BaziPage />} />
             <Route path="/bazi/report" element={<BaziReportPage />} />
+            <Route path="/ziwei" element={<ZiweiPage />} />
+            <Route path="/ziwei/report" element={<ZiweiReportPage />} />
             <Route path="/saved" element={<SavedPage />} />
             <Route path="/s/:hash" element={<SharedPage />} />
             <Route path="/admin" element={<AdminReportsPage />} />
