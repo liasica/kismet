@@ -72,9 +72,17 @@ func main() {
 	deepSeek := httpapi.DeepSeekConfigFromEnv()
 	admin := adminPassword()
 	addr := ":" + port()
+	handler := httpapi.NewServer(
+		store,
+		deepSeek,
+		reports,
+		lib,
+		admin,
+		webFS,
+	).Handler()
 	server := &http.Server{
 		Addr:         addr,
-		Handler:      httpapi.NewServer(store, deepSeek, reports, lib, admin, webFS).Handler(),
+		Handler:      handler,
 		ReadTimeout:  readTimeout,
 		WriteTimeout: writeTimeout,
 	}

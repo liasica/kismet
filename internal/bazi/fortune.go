@@ -201,7 +201,7 @@ func BuildFortune(ctx FortuneContext) (QiYun, []DecadeFortuneStep, error) {
 		DayCount:    duration.Day,
 		HourCount:   duration.Hour,
 		MinuteCount: duration.Minute,
-		StartTime:   FormatTime(startTime),
+		StartTime:   birth.FormatTime(startTime),
 		StartAge:    startAge,
 		Term:        birth.TermPointOf(term),
 		Precision:   ctx.Precision,
@@ -289,7 +289,7 @@ func BuildFortuneMonths(year int, dayStem tyme.HeavenStem) ([]FortuneMonth, erro
 		stemTenStar, branchTenStar := tenStarsOf(dayStem, cycle)
 		out = append(out, FortuneMonth{
 			TermName:      term.GetName(),
-			TermTime:      FormatTime(term.GetJulianDay().GetSolarTime()),
+			TermTime:      birth.FormatTime(term.GetJulianDay().GetSolarTime()),
 			SixtyCycle:    cycle.GetName(),
 			StemTenStar:   stemTenStar,
 			BranchTenStar: branchTenStar,

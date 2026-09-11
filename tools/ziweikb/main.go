@@ -411,8 +411,16 @@ func fillLower(lib *knowledge.Library, lines []string) {
 
 // report 打印各类条目数与缺失的键
 func report(lib *knowledge.Library) {
-	_, _ = fmt.Fprintf(os.Stdout, "正曜 %d 星系 %d 辅佐煞 %d 化曜 %d 杂曜 %d 宫垣 %d 宫\n",
-		len(lib.Stars), len(lib.Systems), len(lib.Assist), len(lib.Mutations), len(lib.Adjective), len(lib.Palaces))
+	_, _ = fmt.Fprintf(
+		os.Stdout,
+		"正曜 %d 星系 %d 辅佐煞 %d 化曜 %d 杂曜 %d 宫垣 %d 宫\n",
+		len(lib.Stars),
+		len(lib.Systems),
+		len(lib.Assist),
+		len(lib.Mutations),
+		len(lib.Adjective),
+		len(lib.Palaces),
+	)
 	for _, palace := range knowledge.PalaceNames {
 		_, _ = fmt.Fprintf(os.Stdout, "  %s %d 条\n", palace, len(lib.Palaces[palace]))
 	}

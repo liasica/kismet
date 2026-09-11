@@ -162,7 +162,12 @@ func (s *Server) serveAnalysis(w http.ResponseWriter, r *http.Request, parse ana
 
 	// 输入先存成报告，解读中途断开也留得下已生成的正文
 	if plan.reportID != "" {
-		if err = s.reports.Upsert(plan.reportID, plan.system, plan.input, plan.options); err != nil {
+		if err = s.reports.Upsert(
+			plan.reportID,
+			plan.system,
+			plan.input,
+			plan.options,
+		); err != nil {
 			writeError(w, err)
 			return
 		}

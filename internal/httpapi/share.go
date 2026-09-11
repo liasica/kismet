@@ -185,7 +185,12 @@ func (s *Server) handleCreateShare(w http.ResponseWriter, r *http.Request) {
 			writeError(w, err)
 			return
 		}
-		if err = s.reports.Upsert(id, system, *req.Input, options); err != nil {
+		if err = s.reports.Upsert(
+			id,
+			system,
+			*req.Input,
+			options,
+		); err != nil {
 			writeError(w, err)
 			return
 		}

@@ -41,7 +41,12 @@ func jiangQianOf(yearBranch int) []string {
 }
 
 // decadesOf 大限按地支排列，起限岁数即局数，每宫十年
-func decadesOf(lifePalace int, forward bool, bureau, birthYear int) []Decade {
+func decadesOf(
+	lifePalace int,
+	forward bool,
+	bureau int,
+	birthYear int,
+) []Decade {
 	out := make([]Decade, 12)
 	for i := 0; i < 12; i++ {
 		step := i
@@ -98,7 +103,12 @@ type flowSeed struct {
 }
 
 // flowOf 大限或流年的流曜：流禄羊陀、流魁钺、流昌曲与流四化按干起，流马按支起，流年另有年解
-func flowOf(scope string, stem, branch, lifePalace int) Flow {
+func flowOf(
+	scope string,
+	stem int,
+	branch int,
+	lifePalace int,
+) Flow {
 	lu := luCun[stem]
 	seeds := []flowSeed{
 		{"流禄", lu}, {"流羊", lu + 1}, {"流陀", lu - 1},

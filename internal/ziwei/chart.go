@@ -7,7 +7,12 @@ import (
 )
 
 // starsAt 落在某宫的星，按清单顺序，带庙陷与生年四化；总是返回非 nil 切片
-func starsAt(names []string, positions map[string]int, branch int, mutations []Mutation) []Star {
+func starsAt(
+	names []string,
+	positions map[string]int,
+	branch int,
+	mutations []Mutation,
+) []Star {
 	out := make([]Star, 0)
 	for _, name := range names {
 		at, ok := positions[name]
