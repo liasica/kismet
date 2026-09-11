@@ -2,7 +2,7 @@
 //
 // 这是 TypeScript 包 `@kismet/core` 的 Go 对应实现。两边共用同一个 tyme 库
 // （tyme4go 与 tyme4ts 同代），自实现的部分逐个移植，输出的 JSON 结构逐字段一致，
-// 由 `data/fixtures/charts.json` 里的黄金基准约束
+// 由 `data/fixtures/bazi-charts.json` 里的黄金基准约束
 package bazi
 
 import "github.com/liasica/kismet/internal/birth"

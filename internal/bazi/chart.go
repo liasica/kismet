@@ -67,7 +67,7 @@ func ResolveOptions(patch OptionsPatch) Options {
 // Paipan 排盘
 //
 // 纯计算，不碰网络与磁盘，结果可直接序列化。与 TS 包 @kismet/core 的 paipan
-// 逐字段一致，由 data/fixtures/charts.json 约束
+// 逐字段一致，由 data/fixtures/bazi-charts.json 约束
 func Paipan(input Input, options Options) (Chart, error) {
 	corrected, err := CorrectTime(input, options)
 	if err != nil {
