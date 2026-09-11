@@ -5,3 +5,4 @@
  */
 export * from "./birth"
 export * from "./bazi"
+export * from "./ziwei"
