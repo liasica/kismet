@@ -5,7 +5,7 @@
  * 天干索引甲 0 至癸 9。与坊本不同之处见 web/core/README.md 的紫微一节
  */
 
-import { EARTH_BRANCHES } from "../../birth/constants"
+import { EARTH_BRANCHES, HEAVEN_STEMS } from "../../birth/constants"
 import type { FiveElement } from "../../birth/types"
 import type { Mutation, PalaceName } from "../types"
 
@@ -17,6 +17,11 @@ export function mod(n: number, m: number): number {
 /** 地支名转索引 */
 export function branchIndex(name: string): number {
   return EARTH_BRANCHES.indexOf(name as (typeof EARTH_BRANCHES)[number])
+}
+
+/** 天干名转索引 */
+export function stemIndex(name: string): number {
+  return HEAVEN_STEMS.indexOf(name as (typeof HEAVEN_STEMS)[number])
 }
 
 /** 把一串地支转成索引数组 */
