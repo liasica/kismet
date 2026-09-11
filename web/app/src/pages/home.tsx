@@ -1,4 +1,5 @@
 import { ModuleCard } from "@/components/module-card"
+import { SYSTEMS } from "@/lib/system"
 
 /** 四柱示意：四根柱各两字，取 README 里的基准盘 */
 function PillarsFigure() {
@@ -71,17 +72,17 @@ export function HomePage() {
     <section className="flex flex-col gap-8">
       <div className="grid gap-6 md:grid-cols-2">
         <ModuleCard
-          eyebrow="Four Pillars"
-          title="八字命理"
+          eyebrow={SYSTEMS.bazi.eyebrow}
+          title={SYSTEMS.bazi.title}
           description="以出生时刻的年、月、日、时四柱干支论命，含藏干十神、神煞、五行强弱与大运流年。"
-          to="/bazi"
+          to={SYSTEMS.bazi.path}
           figure={<PillarsFigure />}
         />
         <ModuleCard
-          eyebrow="Purple Star"
-          title="紫微斗数"
+          eyebrow={SYSTEMS.ziwei.eyebrow}
+          title={SYSTEMS.ziwei.title}
           description="以农历生时安命身十二宫，布紫微、天府诸星，按中州派论星系与宫垣，含大限流年。"
-          to="/ziwei"
+          to={SYSTEMS.ziwei.path}
           figure={<PalaceFigure />}
         />
       </div>

@@ -18,6 +18,7 @@ import type { AnalysisRecord } from "@/lib/analysis"
 import { toPaipanInput } from "@/lib/birth-info"
 import type { PosterSubject } from "@/lib/poster"
 import { deleteReport, isReportId, saveReport, useReports } from "@/lib/reports"
+import { SYSTEMS } from "@/lib/system"
 
 /**
  * 报告页：排盘结果与命理解读，表单值来自会话存储
@@ -89,9 +90,11 @@ export function BaziReportPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <span className="text-[0.625rem] font-semibold tracking-widest text-muted-foreground uppercase">
-            Four Pillars
+            {SYSTEMS.bazi.eyebrow}
           </span>
-          <h1 className="font-serif text-2xl tracking-wide">八字命理</h1>
+          <h1 className="font-serif text-2xl tracking-wide">
+            {SYSTEMS.bazi.title}
+          </h1>
         </div>
         <div className="flex items-center gap-2">
           <Button

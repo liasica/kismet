@@ -28,7 +28,13 @@ export function ZiweiOptionsFields({
 
   const dstEffective =
     moment !== undefined &&
-    isInChinaDst(moment.year, moment.month, moment.day, moment.hour, moment.minute)
+    isInChinaDst(
+      moment.year,
+      moment.month,
+      moment.day,
+      moment.hour,
+      moment.minute
+    )
 
   return (
     <FieldSet>
@@ -40,7 +46,10 @@ export function ZiweiOptionsFields({
             checked={value.useTrueSolarTime}
             onCheckedChange={(v) => patch({ useTrueSolarTime: v })}
           />
-          <FieldLabel htmlFor="ziwei-true-solar" className="flex-col items-start gap-1 font-normal">
+          <FieldLabel
+            htmlFor="ziwei-true-solar"
+            className="flex-col items-start gap-1 font-normal"
+          >
             真太阳时
             <FieldDescription className="m-0">
               按经度差与均时差校正，需要先选出生地
@@ -54,7 +63,10 @@ export function ZiweiOptionsFields({
             checked={value.useDaylightSaving}
             onCheckedChange={(v) => patch({ useDaylightSaving: v })}
           />
-          <FieldLabel htmlFor="ziwei-dst" className="flex-col items-start gap-1 font-normal">
+          <FieldLabel
+            htmlFor="ziwei-dst"
+            className="flex-col items-start gap-1 font-normal"
+          >
             夏令时
             <FieldDescription className="m-0">
               {dstEffective
@@ -70,7 +82,10 @@ export function ZiweiOptionsFields({
             checked={value.lateZiAsNextDay}
             onCheckedChange={(v) => patch({ lateZiAsNextDay: v })}
           />
-          <FieldLabel htmlFor="ziwei-late-zi" className="flex-col items-start gap-1 font-normal">
+          <FieldLabel
+            htmlFor="ziwei-late-zi"
+            className="flex-col items-start gap-1 font-normal"
+          >
             晚子时算次日
             <FieldDescription className="m-0">
               23:00 至 24:00 出生时，关闭则按当天的农历日期安星

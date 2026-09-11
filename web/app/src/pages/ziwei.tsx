@@ -62,7 +62,9 @@ export function ZiweiPage() {
         <span className="text-[0.625rem] font-semibold tracking-widest text-muted-foreground uppercase">
           {SYSTEMS.ziwei.eyebrow}
         </span>
-        <h1 className="font-serif text-2xl tracking-wide">{SYSTEMS.ziwei.title}</h1>
+        <h1 className="font-serif text-2xl tracking-wide">
+          {SYSTEMS.ziwei.title}
+        </h1>
       </div>
 
       <BirthForm

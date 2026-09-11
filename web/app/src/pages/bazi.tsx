@@ -13,6 +13,7 @@ import {
   type BirthInfo,
 } from "@/lib/birth-info"
 import { newReportId } from "@/lib/reports"
+import { SYSTEMS } from "@/lib/system"
 
 export function BaziPage() {
   const [session, setSession] = useBaziSession()
@@ -59,9 +60,11 @@ export function BaziPage() {
     <section className="flex flex-col gap-10">
       <div className="flex flex-col gap-1">
         <span className="text-[0.625rem] font-semibold tracking-widest text-muted-foreground uppercase">
-          Four Pillars
+          {SYSTEMS.bazi.eyebrow}
         </span>
-        <h1 className="font-serif text-2xl tracking-wide">八字命理</h1>
+        <h1 className="font-serif text-2xl tracking-wide">
+          {SYSTEMS.bazi.title}
+        </h1>
       </div>
 
       <BirthForm

@@ -121,7 +121,7 @@ make fixtures   # 重新生成两套跨语言黄金基准并用 Go 侧比对
 - 颜色只用语义 token（`bg-background`、`text-muted-foreground` 等），不写 `bg-blue-500` 这类裸值，也不手写 `dark:` 覆盖
 - 间距用 `flex` + `gap-*`，不用 `space-x-*` / `space-y-*`；宽高相等用 `size-*`
 - 表单用 `FieldGroup` + `Field` 组合，不用 `div` 加 `space-y-*` 拼版；出生信息表单 `birth-form.tsx` 各命理模块共用，模块特有选项以 `children` 接在后面，体系各自的选项落一个 `*-options-fields.tsx`（`bazi-options-fields.tsx`、`ziwei-options-fields.tsx`）
-- 体系元数据（眉题、标题、路径）集中在 `lib/system.ts` 的 `SYSTEMS`；紫微表单页、报告页与需要按体系动态分发的组件（分享、收藏卡片、长图、后台）从这里取，首页卡片与八字表单页、报告页仍各写字面量
+- 体系元数据（眉题、标题、路径）集中在 `lib/system.ts` 的 `SYSTEMS`；首页卡片、两套表单页、两套报告页与需要按体系动态分发的组件（分享、收藏卡片、长图、后台）都从这里取
 - 所有页面共用 `App.tsx` 容器的宽度（`max-w-4xl`），页面内不再各自设最大宽度；结果另开报告页；会话存储由 `components/session-store.tsx` 的工厂按体系生成（`kismet.bazi`、`kismet.ziwei`），表单草稿只在表单页组件内，提交时才写入会话，报告页据此重新排盘，刷新不丢，「返回修改」以路由 state 带回上次提交的值，其余入口进表单页都是空表单；报告可收藏到 localStorage（`lib/reports.ts`，键 `kismet.reports`，条目带 `system`），报告页头部有收藏开关，解读结束后自动收藏并更新正文；`/saved` 以卡片列出全部收藏，沿用首页卡片的光斑特效，八字卡片以四柱为主体、紫微卡片以命身宫为主体，点开写入对应体系的会话并展示保存的解读
 - 长图 `lib/poster.ts` 按 `PosterSubject.system` 分发：八字画四柱与五行，紫微画十二宫格；分享对话框（`ShareDialog`）与解读面板（`AnalysisPanel`）都接带 `system` 的记录
 - 弹层内的可滚动列表不显示滚动条，用 `.time-list` 那样的渐隐边缘提示可滚动
