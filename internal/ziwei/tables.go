@@ -7,13 +7,14 @@ var heavenStems = []string{"甲", "乙", "丙", "丁", "戊", "己", "庚", "辛
 
 var earthBranches = []string{"子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"}
 
-// palaceNames 十二宫自命宫逆布的名字
-var palaceNames = []string{
+// PalaceNames 十二宫自命宫逆布的名字，knowledge 包直接复用这份，不再自己维护一份副本
+var PalaceNames = []string{
 	"命宫", "兄弟宫", "夫妻宫", "子女宫", "财帛宫", "疾厄宫",
 	"迁移宫", "交友宫", "事业宫", "田宅宫", "福德宫", "父母宫",
 }
 
-var majorStars = []string{
+// MajorStars 十四正曜的表序，knowledge 包直接复用这份，不再自己维护一份副本
+var MajorStars = []string{
 	"紫微", "天机", "太阳", "武曲", "天同", "廉贞", "天府",
 	"太阴", "贪狼", "巨门", "天相", "天梁", "七杀", "破军",
 }
@@ -37,8 +38,8 @@ func mod(n, m int) int {
 	return ((n % m) + m) % m
 }
 
-// branchIndex 地支名转索引，找不到返回 -1
-func branchIndex(name string) int {
+// BranchIndex 地支名转索引，找不到返回 -1；knowledge 包直接复用这份，不再自己另起一套索引算法
+func BranchIndex(name string) int {
 	for i, b := range earthBranches {
 		if b == name {
 			return i
@@ -61,7 +62,7 @@ func stemIndex(name string) int {
 func branches(row string) []int {
 	out := make([]int, 0, 12)
 	for _, ch := range row {
-		out = append(out, branchIndex(string(ch)))
+		out = append(out, BranchIndex(string(ch)))
 	}
 	return out
 }

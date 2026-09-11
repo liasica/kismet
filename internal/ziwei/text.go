@@ -35,7 +35,7 @@ func majorText(chart Chart, palace Palace) string {
 	if len(palace.MajorStars) > 0 {
 		return starsText(palace.MajorStars)
 	}
-	opposite := chart.Palaces[mod(branchIndex(palace.Branch)+6, 12)]
+	opposite := chart.Palaces[mod(BranchIndex(palace.Branch)+6, 12)]
 	return fmt.Sprintf("无，借对宫%s：%s", opposite.Branch, starsText(opposite.MajorStars))
 }
 

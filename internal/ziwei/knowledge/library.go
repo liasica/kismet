@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io/fs"
 	"sort"
+
+	"github.com/liasica/kismet/internal/ziwei"
 )
 
 // fileName 数据文件名
@@ -39,17 +41,11 @@ type Library struct {
 	Palaces map[string]map[string]string `json:"palaces"`
 }
 
-// MajorStars 十四正曜的表序，与 ziwei 包一致
-var MajorStars = []string{
-	"紫微", "天机", "太阳", "武曲", "天同", "廉贞", "天府",
-	"太阴", "贪狼", "巨门", "天相", "天梁", "七杀", "破军",
-}
+// MajorStars 十四正曜的表序，直接引用 ziwei 包导出的那份，不再自己维护一份副本
+var MajorStars = ziwei.MajorStars
 
-// PalaceNames 十二宫
-var PalaceNames = []string{
-	"命宫", "兄弟宫", "夫妻宫", "子女宫", "财帛宫", "疾厄宫",
-	"迁移宫", "交友宫", "事业宫", "田宅宫", "福德宫", "父母宫",
-}
+// PalaceNames 十二宫，直接引用 ziwei 包导出的那份，不再自己维护一份副本
+var PalaceNames = ziwei.PalaceNames
 
 // AssistPairs 辅佐煞的对星
 var AssistPairs = []string{"天魁天钺", "左辅右弼", "文昌文曲", "禄存天马", "擎羊陀罗", "火星铃星", "地空地劫"}

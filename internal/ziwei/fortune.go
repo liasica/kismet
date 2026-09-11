@@ -132,7 +132,7 @@ func lunarYearCycle(year int) (stem, branch int, err error) {
 		return
 	}
 	name := []rune(lunarYear.GetSixtyCycle().GetName())
-	stem, branch = stemIndex(string(name[0])), branchIndex(string(name[1]))
+	stem, branch = stemIndex(string(name[0])), BranchIndex(string(name[1]))
 	return
 }
 
@@ -140,7 +140,7 @@ func lunarYearCycle(year int) (stem, branch int, err error) {
 func DecadeFlow(chart Chart, index int) (Flow, error) {
 	for _, palace := range chart.Palaces {
 		if palace.Decade.Index == index {
-			branch := branchIndex(palace.Branch)
+			branch := BranchIndex(palace.Branch)
 			return flowOf("decade", stemIndex(palace.Stem), branch, branch), nil
 		}
 	}
@@ -157,7 +157,7 @@ func Yearly(chart Chart, year int) (Year, error) {
 	age := year - chart.Lunar.Year + 1
 	male := chart.Gender == "male"
 	// 斗君：太岁宫起正月逆数至生月，再从该宫起子时顺数至生时
-	douJun := mod(branch-(chart.Lunar.EffectiveMonth-1)+branchIndex(chart.Lunar.HourBranch), 12)
+	douJun := mod(branch-(chart.Lunar.EffectiveMonth-1)+BranchIndex(chart.Lunar.HourBranch), 12)
 
 	return Year{
 		Flow:       flowOf("year", stem, branch, branch),
@@ -166,7 +166,7 @@ func Yearly(chart Chart, year int) (Year, error) {
 		SuiQian:    suiQianOf(branch),
 		JiangQian:  jiangQianOf(branch),
 		DouJun:     earthBranches[douJun],
-		MinorLimit: earthBranches[minorLimitBranchOf(branchIndex(chart.YearBranch), male, age)],
+		MinorLimit: earthBranches[minorLimitBranchOf(BranchIndex(chart.YearBranch), male, age)],
 	}, nil
 }
 

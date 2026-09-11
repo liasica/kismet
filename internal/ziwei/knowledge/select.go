@@ -32,23 +32,24 @@ var pairOf = map[string]string{
 // branchPairs 宫位对，索引为地支 mod 6
 var branchPairs = []string{"子午", "丑未", "寅申", "卯酉", "辰戌", "巳亥"}
 
-var branchOrder = "子丑寅卯辰巳午未申酉戌亥"
-
-func palaceByName(chart ziwei.Chart, name string) ziwei.Palace {
+// palaceByName 按宫名取宫，查不到返回 false
+//
+// 十二宫名统一来自 ziwei 包导出的 PalaceNames，正常情况下这里不该查不到；
+// 仍处理一下以防两边的宫名表出现偏差，调用方应跳过而不是拿零值当数据用
+func palaceByName(chart ziwei.Chart, name string) (ziwei.Palace, bool) {
 	for _, p := range chart.Palaces {
 		if p.Name == name {
-			return p
+			return p, true
 		}
 	}
-	return ziwei.Palace{}
+	return ziwei.Palace{}, false
 }
 
 // majorsOf 某宫的正曜名，无正曜时借对宫
 func majorsOf(chart ziwei.Chart, palace ziwei.Palace) []string {
 	stars := palace.MajorStars
 	if len(stars) == 0 {
-		index := strings.Index(branchOrder, palace.Branch) / len("子")
-		stars = chart.Palaces[(index+6)%12].MajorStars
+		stars = chart.Palaces[(ziwei.BranchIndex(palace.Branch)+6)%12].MajorStars
 	}
 	names := make([]string, 0, len(stars))
 	for _, s := range stars {
@@ -57,11 +58,15 @@ func majorsOf(chart ziwei.Chart, palace ziwei.Palace) []string {
 	return names
 }
 
-// SystemKey 命宫星系的规范名：正曜按表序连写，一颗为「独坐」、两颗为「坐」，加命宫所在的宫位对
+// SystemKey 命宫星系的规范名：正曜按表序连写，一颗为「独坐」、两颗为「坐」，加命宫所在的宫位对；
+// 命宫查不到时返回空串
 func SystemKey(chart ziwei.Chart) string {
-	life := palaceByName(chart, "命宫")
+	life, ok := palaceByName(chart, "命宫")
+	if !ok {
+		return ""
+	}
 	names := majorsOf(chart, life)
-	pair := branchPairs[(strings.Index(branchOrder, life.Branch)/len("子"))%6]
+	pair := branchPairs[ziwei.BranchIndex(life.Branch)%6]
 	if len(names) == 1 {
 		return names[0] + "独坐" + pair
 	}
@@ -78,12 +83,14 @@ func (l *Library) Select(chart ziwei.Chart, limit ziwei.Limit) []Entry {
 		}
 	}
 
-	systemKey := SystemKey(chart)
-	add("星系 "+systemKey, l.Systems[systemKey])
+	if systemKey := SystemKey(chart); systemKey != "" {
+		add("星系 "+systemKey, l.Systems[systemKey])
+	}
 
-	life := palaceByName(chart, "命宫")
-	for _, star := range majorsOf(chart, life) {
-		add("正曜 "+star, l.Stars[star])
+	if life, ok := palaceByName(chart, "命宫"); ok {
+		for _, star := range majorsOf(chart, life) {
+			add("正曜 "+star, l.Stars[star])
+		}
 	}
 
 	// 生年、大限、流年三组四化，同一条只取一次
@@ -110,7 +117,10 @@ func (l *Library) Select(chart ziwei.Chart, limit ziwei.Limit) []Entry {
 	}
 
 	for _, name := range palacePriority {
-		palace := palaceByName(chart, name)
+		palace, ok := palaceByName(chart, name)
+		if !ok {
+			continue
+		}
 		for _, star := range majorsOf(chart, palace) {
 			add(name+" "+star, l.Palaces[name][star])
 		}
@@ -119,7 +129,11 @@ func (l *Library) Select(chart ziwei.Chart, limit ziwei.Limit) []Entry {
 	// 命宫三方四正：命宫、财帛宫、事业宫、迁移宫
 	pairSeen := map[string]bool{}
 	for _, name := range []string{"命宫", "财帛宫", "事业宫", "迁移宫"} {
-		for _, star := range palaceByName(chart, name).MinorStars {
+		palace, ok := palaceByName(chart, name)
+		if !ok {
+			continue
+		}
+		for _, star := range palace.MinorStars {
 			pair := pairOf[star.Name]
 			if pair == "" || pairSeen[pair] {
 				continue

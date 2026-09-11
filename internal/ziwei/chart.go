@@ -37,7 +37,7 @@ func Paipan(input birth.Input, options Options) (Chart, error) {
 
 	cycle := []rune(lunar.yearSixtyCycle)
 	yearStem := stemIndex(string(cycle[0]))
-	yearBranch := branchIndex(string(cycle[1]))
+	yearBranch := BranchIndex(string(cycle[1]))
 	yang := yearStem%2 == 0
 	male := input.Gender == birth.GenderMale
 	// 阳男阴女顺行
@@ -71,12 +71,12 @@ func Paipan(input birth.Input, options Options) (Chart, error) {
 		stem := heavenStems[palaceStemOf(yearStem, b)]
 		palaces = append(palaces, Palace{
 			Index:          index,
-			Name:           palaceNames[index],
+			Name:           PalaceNames[index],
 			Branch:         branch,
 			Stem:           stem,
 			SixtyCycle:     stem + branch,
 			IsBodyPalace:   b == bodyPalace,
-			MajorStars:     starsAt(majorStars, positions.major, b, mutations),
+			MajorStars:     starsAt(MajorStars, positions.major, b, mutations),
 			MinorStars:     starsAt(minorStars, positions.minor, b, mutations),
 			AdjectiveStars: starsAt(adjectiveStars, positions.adjective, b, mutations),
 			ChangSheng:     changShengNames[b],

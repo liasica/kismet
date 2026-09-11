@@ -38,9 +38,9 @@ type PalaceBranch struct {
 // 顺序给出每一宫对应的地支。原局、大限、流年的命宫各自另起一套十二宫，方向都是逆布，
 // 调用方在大限、流年命宫另立时可直接查表得到其余十一宫的位置，不必自己推算
 func PalaceLayout(lifePalaceBranch string) []PalaceBranch {
-	start := branchIndex(lifePalaceBranch)
-	layout := make([]PalaceBranch, len(palaceNames))
-	for i, name := range palaceNames {
+	start := BranchIndex(lifePalaceBranch)
+	layout := make([]PalaceBranch, len(PalaceNames))
+	for i, name := range PalaceNames {
 		layout[i] = PalaceBranch{Name: name, Branch: earthBranches[mod(start-i, 12)]}
 	}
 	return layout
