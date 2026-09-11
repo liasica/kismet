@@ -16,6 +16,7 @@ build: web
 web:
 	pnpm -C web install --frozen-lockfile
 	pnpm -C web build
+	@touch web/app/dist/.gitkeep
 
 ## run 构建并运行
 run: build
