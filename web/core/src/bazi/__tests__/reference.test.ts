@@ -16,16 +16,17 @@
 
 import { describe, expect, it } from "vitest"
 
-import { paipan } from "../chart"
-import type { PaipanInput, PillarKind } from "../types"
+import { baziPaipan } from "../chart"
+import type { PaipanInput } from "../../birth/types"
+import type { PillarKind } from "../types"
 
 const KS: readonly PillarKind[] = ["year", "month", "day", "hour"]
 
 function four(
   input: PaipanInput,
-  partial?: Parameters<typeof paipan>[1]
+  partial?: Parameters<typeof baziPaipan>[1]
 ): string {
-  const chart = paipan(input, partial)
+  const chart = baziPaipan(input, partial)
   return KS.map((k) => chart.pillars[k].sixtyCycle).join(" ")
 }
 
@@ -39,7 +40,7 @@ describe("问真基准盘：1990-05-03 12:30 东经 114.0833，男", () => {
     gender: "male",
     longitude: 114.0833,
   }
-  const chart = paipan(input, {
+  const chart = baziPaipan(input, {
     useTrueSolarTime: true,
     qiYunPrecision: "hour",
   })
@@ -181,7 +182,7 @@ describe("五个公开生日：与问真逐柱核对", () => {
     minute: number,
     longitude: number
   ) {
-    return paipan(
+    return baziPaipan(
       { year, month, day, hour, minute, gender: "male", longitude },
       WZ_OPTIONS
     )
@@ -315,7 +316,7 @@ describe("五个公开生日：与问真逐柱核对", () => {
    * 庚来自当日日干丁
    */
   it("晚子时算当天时，时干跟随当日日干", () => {
-    const chart = paipan(
+    const chart = baziPaipan(
       {
         year: 1904,
         month: 8,
@@ -370,7 +371,7 @@ describe("与简化实现的差异", () => {
 
   it("月支由节气定，不由公历月定", () => {
     // 1990-02-05 已过立春，月支是寅不是卯
-    const chart = paipan({
+    const chart = baziPaipan({
       year: 1990,
       month: 2,
       day: 5,

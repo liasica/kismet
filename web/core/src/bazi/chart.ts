@@ -1,24 +1,23 @@
 /**
  * 排盘主流程
  *
- * `paipan(input)` 是本模块唯一的入口，纯函数、不碰网络与 DOM，结果可直接 `JSON.stringify`
+ * `baziPaipan(input)` 是本模块唯一的入口，纯函数、不碰网络与 DOM，结果可直接 `JSON.stringify`
  */
 
 import { EarthBranch, EightChar, HeavenStem, SixtyCycle } from "tyme4ts"
 
+import { correctTime } from "../birth/time"
+import type { FiveElement, Location, PaipanInput } from "../birth/types"
 import { PILLAR_KINDS } from "./data/constants"
 import { buildPillar } from "./derived"
 import { elementOfStem, getElementStrategy } from "./elements"
 import { buildFortune, buildFortuneMonths } from "./fortune"
 import { buildFourPillars, sixtyCycleYearOf } from "./pillars"
 import { matchShenSha } from "./shensha"
-import { correctTime } from "./time"
 import type {
-  Chart,
-  FiveElement,
+  BaziChart,
+  BaziOptions,
   FortuneMonth,
-  PaipanInput,
-  PaipanOptions,
   Pillar,
   PillarKind,
 } from "./types"
@@ -28,7 +27,7 @@ import type {
  *
  * 每一项都对应一处流派分歧，取值理由见 `README`
  */
-export const DEFAULT_OPTIONS: PaipanOptions = {
+export const DEFAULT_BAZI_OPTIONS: BaziOptions = {
   useTrueSolarTime: false,
   useDaylightSaving: false,
   lateZiAsNextDay: false,
@@ -44,13 +43,15 @@ export const DEFAULT_OPTIONS: PaipanOptions = {
  * 值为 `undefined` 的键当作没传，不会把默认值冲掉。对象展开做不到这一点，
  * 而来自 HTTP 请求解析的选项对象常带着一堆 `undefined`
  */
-export function resolveOptions(
-  partial?: Partial<PaipanOptions>
-): PaipanOptions {
-  const merged: PaipanOptions = { ...DEFAULT_OPTIONS }
+export function resolveBaziOptions(
+  partial?: Partial<BaziOptions>
+): BaziOptions {
+  const merged: BaziOptions = { ...DEFAULT_BAZI_OPTIONS }
   if (!partial) return merged
-  // 只认 `DEFAULT_OPTIONS` 里有的键，未知键一并忽略
-  for (const key of Object.keys(DEFAULT_OPTIONS) as (keyof PaipanOptions)[]) {
+  // 只认 `DEFAULT_BAZI_OPTIONS` 里有的键，未知键一并忽略
+  for (const key of Object.keys(
+    DEFAULT_BAZI_OPTIONS
+  ) as (keyof BaziOptions)[]) {
     const value = partial[key]
     if (value !== undefined) {
       merged[key] = value as never
@@ -59,11 +60,11 @@ export function resolveOptions(
   return merged
 }
 
-export function paipan(
+export function baziPaipan(
   input: PaipanInput,
-  partial?: Partial<PaipanOptions>
-): Chart {
-  const options = resolveOptions(partial)
+  partial?: Partial<BaziOptions>
+): BaziChart {
+  const options = resolveBaziOptions(partial)
   const { effective, info } = correctTime(input, options)
 
   const four = buildFourPillars(effective, options.lateZiAsNextDay)
@@ -105,7 +106,7 @@ export function paipan(
   // 胎元、胎息、命宫、身宫都只依赖四柱，直接从本派四柱构造，不再走一遍时刻推算
   const eightChar = new EightChar(four.year, four.month, four.day, four.hour)
 
-  const location =
+  const location: Location | undefined =
     input.location !== undefined ||
     input.longitude !== undefined ||
     input.latitude !== undefined
@@ -149,8 +150,11 @@ export function paipan(
 /**
  * 取任意一个干支年的流月
  *
- * 界面上点选流年后要看那一年的流月，`Chart.months` 只带出生当年的
+ * 界面上点选流年后要看那一年的流月，`BaziChart.months` 只带出生当年的
  */
-export function monthsOfYear(chart: Chart, year: number): FortuneMonth[] {
+export function baziMonthsOfYear(
+  chart: BaziChart,
+  year: number
+): FortuneMonth[] {
   return buildFortuneMonths(year, HeavenStem.fromName(chart.dayStem))
 }

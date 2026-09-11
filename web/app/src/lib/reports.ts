@@ -4,7 +4,7 @@
 
 import { useSyncExternalStore } from "react"
 
-import type { PaipanOptions } from "@kismet/core"
+import type { BaziOptions } from "@kismet/core"
 import type { BirthInfo } from "@/lib/birth-info"
 
 export interface SavedReport {
@@ -13,7 +13,7 @@ export interface SavedReport {
   /** 最近一次保存的时间戳 */
   savedAt: number
   birth: BirthInfo
-  options: PaipanOptions
+  options: BaziOptions
   /** 解读正文 Markdown，尚未解读时为空 */
   analysis: string
 }

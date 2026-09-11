@@ -7,7 +7,7 @@
 
 import { useSyncExternalStore } from "react"
 
-import type { PaipanInput, PaipanOptions } from "@kismet/core"
+import type { PaipanInput, BaziOptions } from "@kismet/core"
 import { API_BASE, readError } from "@/lib/api"
 import type { ShareInfo } from "@/lib/share"
 
@@ -26,7 +26,7 @@ export interface AdminReportSummary {
 
 /** 单份报告的全部内容 */
 export interface AdminReport extends AdminReportSummary {
-  options: PaipanOptions
+  options: BaziOptions
   analysis: string
 }
 

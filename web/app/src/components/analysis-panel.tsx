@@ -4,13 +4,13 @@ import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
 import { Button } from "@/components/ui/button"
-import type { Chart } from "@kismet/core"
+import type { BaziChart } from "@kismet/core"
 import { streamAnalysis } from "@/lib/analysis"
 
 type Status = "idle" | "thinking" | "streaming" | "done" | "error"
 
 interface AnalysisPanelProps {
-  chart: Chart
+  chart: BaziChart
   /** 报告 id，解读结果以此存到服务端 */
   reportId: string
   /** 已收藏的解读正文，有则直接展示 */

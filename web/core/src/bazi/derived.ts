@@ -11,13 +11,8 @@ import {
   SixtyCycle,
 } from "tyme4ts"
 
-import type {
-  FiveElement,
-  HideStem,
-  HideStemType,
-  Pillar,
-  PillarKind,
-} from "./types"
+import type { FiveElement } from "../birth/types"
+import type { HideStem, HideStemType, Pillar, PillarKind } from "./types"
 
 const HIDE_TYPE_MAP: Record<number, HideStemType> = {
   [HideHeavenStemType.MAIN]: "main",

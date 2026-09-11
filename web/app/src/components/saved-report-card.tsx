@@ -5,8 +5,8 @@ import { Link } from "react-router"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { paipan } from "@kismet/core"
-import type { Chart, PillarKind } from "@kismet/core"
+import { baziPaipan } from "@kismet/core"
+import type { BaziChart, PillarKind } from "@kismet/core"
 import { ELEMENT_TEXT, toPaipanInput } from "@/lib/bazi"
 import { locationNameOf } from "@/lib/birth-info"
 import { trackGlow } from "@/lib/glow"
@@ -20,11 +20,11 @@ const PILLARS: ReadonlyArray<[PillarKind, string]> = [
 ]
 
 /** 按保存的表单值重新排盘，输入不合法时卡片不显示四柱 */
-function chartOf(report: SavedReport): Chart | undefined {
+function chartOf(report: SavedReport): BaziChart | undefined {
   const input = toPaipanInput(report.birth)
   if (!input) return undefined
   try {
-    return paipan(input, report.options)
+    return baziPaipan(input, report.options)
   } catch {
     return undefined
   }

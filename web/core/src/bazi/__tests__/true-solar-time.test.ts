@@ -4,10 +4,13 @@
 
 import { describe, expect, it } from "vitest"
 
-import { paipan } from "../chart"
-import { isInChinaDst } from "../data/daylight-saving"
-import { equationOfTime, trueSolarOffsetMinutes } from "../equation-of-time"
-import type { PaipanInput } from "../types"
+import { baziPaipan } from "../chart"
+import { isInChinaDst } from "../../birth/daylight-saving"
+import {
+  equationOfTime,
+  trueSolarOffsetMinutes,
+} from "../../birth/equation-of-time"
+import type { PaipanInput } from "../../birth/types"
 
 /** 乌鲁木齐一带的经度 */
 const URUMQI_LNG = 87.6
@@ -29,8 +32,8 @@ function male(
 describe("测试 5：真太阳时改变时柱", () => {
   it("乌鲁木齐 22:55 出生，开启真太阳时后时支由亥退到戌", () => {
     const input = male(1990, 5, 3, 22, 55, URUMQI_LNG)
-    const off = paipan(input, { useTrueSolarTime: false })
-    const on = paipan(input, { useTrueSolarTime: true })
+    const off = baziPaipan(input, { useTrueSolarTime: false })
+    const on = baziPaipan(input, { useTrueSolarTime: true })
 
     expect(off.time.effective).toBe("1990-05-03 22:55:00")
     expect(off.pillars.hour.sixtyCycle).toBe("癸亥")
@@ -51,8 +54,8 @@ describe("测试 5：真太阳时改变时柱", () => {
   it("真太阳时可以把时刻推到前一天，日柱与时柱一起变", () => {
     // 四川广安 1904-08-22 00:30，经度约 105.94，退约 56 分钟到前一天 23:34
     const input = male(1904, 8, 22, 0, 30, 105.94)
-    const off = paipan(input, { useTrueSolarTime: false })
-    const on = paipan(input, { useTrueSolarTime: true })
+    const off = baziPaipan(input, { useTrueSolarTime: false })
+    const on = baziPaipan(input, { useTrueSolarTime: true })
 
     expect(off.pillars.day.sixtyCycle).toBe("戊子")
     expect(off.pillars.hour.sixtyCycle).toBe("壬子")
@@ -65,14 +68,14 @@ describe("测试 5：真太阳时改变时柱", () => {
 
   it("未提供经度时开启真太阳时会报错，不做静默降级", () => {
     expect(() =>
-      paipan(male(1990, 5, 3, 12, 30), { useTrueSolarTime: true })
+      baziPaipan(male(1990, 5, 3, 12, 30), { useTrueSolarTime: true })
     ).toThrow(/经度/)
   })
 })
 
 describe("均时差", () => {
   it("基准盘的真太阳时落在 12:09，与问真八字一致", () => {
-    const chart = paipan(male(1990, 5, 3, 12, 30, BASELINE_LNG), {
+    const chart = baziPaipan(male(1990, 5, 3, 12, 30, BASELINE_LNG), {
       useTrueSolarTime: true,
     })
     expect(chart.time.effective).toBe("1990-05-03 12:09:00")
@@ -123,8 +126,8 @@ describe("夏令时", () => {
   it("开启夏令时后时刻回拨一小时，可以改变时柱", () => {
     // 1990-05-03 落在夏令时区间内，12:30 的钟表读数对应标准时 11:30
     const input = male(1990, 5, 3, 12, 30)
-    const off = paipan(input, { useDaylightSaving: false })
-    const on = paipan(input, { useDaylightSaving: true })
+    const off = baziPaipan(input, { useDaylightSaving: false })
+    const on = baziPaipan(input, { useDaylightSaving: true })
 
     expect(off.time.standard).toBe("1990-05-03 12:30:00")
     expect(on.time.standard).toBe("1990-05-03 11:30:00")
@@ -133,19 +136,23 @@ describe("夏令时", () => {
     expect(on.pillars.hour.sixtyCycle).toBe(off.pillars.hour.sixtyCycle)
 
     // 13:30 回拨后落到 12:30，仍是午时；11:30 回拨后落到 10:30，退到巳时
-    const noon = paipan(male(1990, 5, 3, 11, 30), { useDaylightSaving: true })
+    const noon = baziPaipan(male(1990, 5, 3, 11, 30), {
+      useDaylightSaving: true,
+    })
     expect(noon.time.standard).toBe("1990-05-03 10:30:00")
     expect(noon.pillars.hour.branch).toBe("巳")
   })
 
   it("夏令时区间外开启开关不产生任何偏移", () => {
-    const chart = paipan(male(1990, 3, 3, 12, 30), { useDaylightSaving: true })
+    const chart = baziPaipan(male(1990, 3, 3, 12, 30), {
+      useDaylightSaving: true,
+    })
     expect(chart.time.daylightSavingMinutes).toBe(0)
     expect(chart.time.standard).toBe(chart.time.input)
   })
 
   it("夏令时与真太阳时叠加时，先回拨再算经度差与均时差", () => {
-    const chart = paipan(male(1990, 5, 3, 12, 30, BASELINE_LNG), {
+    const chart = baziPaipan(male(1990, 5, 3, 12, 30, BASELINE_LNG), {
       useDaylightSaving: true,
       useTrueSolarTime: true,
     })

@@ -1,5 +1,5 @@
 /**
- * 把 `Chart` 渲染成传统排盘的竖排文字表，用于肉眼对照现有排盘工具
+ * 把 `BaziChart` 渲染成传统排盘的竖排文字表，用于肉眼对照现有排盘工具
  *
  * 四柱按列排、项目按行排，中文按两个字符宽度对齐
  */
@@ -11,7 +11,7 @@ import {
   TEN_STAR_SHORT,
 } from "./data/constants"
 import { groupShenShaByPillar } from "./shensha"
-import type { Chart, ElementKey, PillarKind } from "./types"
+import type { BaziChart, ElementKey, PillarKind } from "./types"
 
 /** 显示宽度，非 ASCII 一律按 2 列算 */
 function width(s: string): number {
@@ -39,7 +39,7 @@ function row(
   ).trimEnd()
 }
 
-export interface ToTextOptions {
+export interface BaziToTextOptions {
   /** 列出大运，默认列出 */
   decades?: boolean
   /** 列出流年，默认不列，100 岁会有上百行 */
@@ -50,7 +50,10 @@ export interface ToTextOptions {
   elementDetail?: boolean
 }
 
-export function toText(chart: Chart, options: ToTextOptions = {}): string {
+export function baziToText(
+  chart: BaziChart,
+  options: BaziToTextOptions = {}
+): string {
   const {
     decades = true,
     years = false,

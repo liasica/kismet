@@ -1,14 +1,14 @@
 /* eslint-disable react-refresh/only-export-components */
 import * as React from "react"
 
-import type { PaipanOptions } from "@kismet/core"
+import type { BaziOptions } from "@kismet/core"
 import { INITIAL_OPTIONS } from "@/lib/bazi"
 import { INITIAL_BIRTH_INFO, type BirthInfo } from "@/lib/birth-info"
 
 /** 八字模块最近一次提交的表单值与提交状态，表单页提交、收藏页打开报告时写，报告页读 */
 export interface BaziSession {
   birth: BirthInfo
-  options: PaipanOptions
+  options: BaziOptions
   /** 最近一次提交的时间戳，未提交为 0；报告页据此判断有没有内容，也用它重建解读面板 */
   submittedAt: number
   /** 本次报告在已保存报告里的 id，提交表单或打开已保存的报告时设定 */

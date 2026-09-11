@@ -5,14 +5,14 @@
 import { describe, expect, it } from "vitest"
 import { SixtyCycle } from "tyme4ts"
 
-import { paipan } from "../chart"
+import { baziPaipan } from "../chart"
 import {
   buildFortuneMonths,
   buildPreFortuneYears,
   minorFortuneOf,
 } from "../fortune"
 import { HeavenStem } from "tyme4ts"
-import type { Gender, PaipanInput } from "../types"
+import type { Gender, PaipanInput } from "../../birth/types"
 
 function at(year: number, gender: Gender): PaipanInput {
   return { year, month: 5, day: 3, hour: 12, minute: 30, gender }
@@ -61,7 +61,7 @@ describe("测试 6：大运顺逆与起运", () => {
 
   for (const c of cases) {
     it(`${c.label}（${c.year} 年生）${c.forward ? "顺" : "逆"}排，首步大运 ${c.first}`, () => {
-      const chart = paipan(at(c.year, c.gender))
+      const chart = baziPaipan(at(c.year, c.gender))
       expect(chart.qiYun.forward).toBe(c.forward)
       expect(chart.decades[0].sixtyCycle).toBe(c.first)
       expect(chart.decades[0].startYear).toBe(c.startYear)
@@ -76,7 +76,7 @@ describe("测试 6：大运顺逆与起运", () => {
     })
 
     it(`${c.label}顺排取下一个节、逆排取上一个节作为折算依据`, () => {
-      const chart = paipan(at(c.year, c.gender))
+      const chart = baziPaipan(at(c.year, c.gender))
       // 5 月 3 日在清明与立夏之间，顺排数到立夏、逆排数到清明
       expect(chart.qiYun.term.name).toBe(c.forward ? "立夏" : "清明")
     })
@@ -91,7 +91,7 @@ describe("测试 6：大运顺逆与起运", () => {
    * 大运首步「1991 2岁 辛巳」，与下面的断言完全一致
    */
   it("与问真核对过的起运值", () => {
-    const chart = paipan(
+    const chart = baziPaipan(
       {
         year: 1990,
         month: 5,
@@ -125,11 +125,11 @@ describe("测试 6：大运顺逆与起运", () => {
       gender: "male",
       longitude: 114.0833,
     }
-    const byDay = paipan(input, {
+    const byDay = baziPaipan(input, {
       useTrueSolarTime: true,
       qiYunPrecision: "day",
     })
-    const byHour = paipan(input, {
+    const byHour = baziPaipan(input, {
       useTrueSolarTime: true,
       qiYunPrecision: "hour",
     })
@@ -151,7 +151,7 @@ describe("测试 6：大运顺逆与起运", () => {
 })
 
 describe("流年与小运", () => {
-  const chart = paipan(
+  const chart = baziPaipan(
     {
       year: 1990,
       month: 5,
@@ -250,7 +250,7 @@ describe("流月以节为界", () => {
 
 describe("胎元与命宫", () => {
   it("胎元是月干进一位、月支进三位", () => {
-    const chart = paipan({
+    const chart = baziPaipan({
       year: 1990,
       month: 5,
       day: 3,
@@ -266,7 +266,7 @@ describe("胎元与命宫", () => {
   })
 
   it("与问真核对：胎元辛未、命宫癸未、身宫丁亥", () => {
-    const chart = paipan({
+    const chart = baziPaipan({
       year: 1990,
       month: 5,
       day: 3,

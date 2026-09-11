@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router"
 import { BaziOptionsFields } from "@/components/bazi-options-fields"
 import { useBaziSession } from "@/components/bazi-session"
 import { BirthForm } from "@/components/birth-form"
-import { paipan, type PaipanOptions } from "@kismet/core"
+import { baziPaipan, type BaziOptions } from "@kismet/core"
 import { INITIAL_OPTIONS, toPaipanInput } from "@/lib/bazi"
 import {
   INITIAL_BIRTH_INFO,
@@ -22,7 +22,7 @@ export function BaziPage() {
   const [birth, setBirth] = React.useState<BirthInfo>(
     editing ? session.birth : INITIAL_BIRTH_INFO
   )
-  const [options, setOptions] = React.useState<PaipanOptions>(
+  const [options, setOptions] = React.useState<BaziOptions>(
     editing ? session.options : INITIAL_OPTIONS
   )
   const [error, setError] = React.useState<string>()
@@ -39,7 +39,7 @@ export function BaziPage() {
       return
     }
     try {
-      paipan(input, options)
+      baziPaipan(input, options)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       return

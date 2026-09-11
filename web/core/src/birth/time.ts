@@ -11,10 +11,10 @@
 
 import { SolarTime } from "tyme4ts"
 
-import { DST_OFFSET_MINUTES, isInChinaDst } from "./data/daylight-saving"
+import { DST_OFFSET_MINUTES, isInChinaDst } from "./daylight-saving"
 import { equationOfTime } from "./equation-of-time"
 import { formatTime, shiftSeconds } from "./util"
-import type { PaipanInput, PaipanOptions, TermPoint, TimeInfo } from "./types"
+import type { PaipanInput, TermPoint, TimeInfo, TimeOptions } from "./types"
 
 /** 北京时间的标准经线 */
 const BEIJING_MERIDIAN = 120
@@ -53,7 +53,7 @@ function termPointOf(name: string, t: SolarTime): TermPoint {
  */
 export function correctTime(
   input: PaipanInput,
-  options: PaipanOptions
+  options: TimeOptions
 ): CorrectedTime {
   const { year, month, day, hour, minute } = input
 

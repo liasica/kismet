@@ -9,12 +9,12 @@ import {
   ELEMENT_KEY_ORDER,
   ELEMENT_NAMES,
   groupShenShaByPillar,
-  monthsOfYear,
+  baziMonthsOfYear,
   PILLAR_LABELS,
   shortTenStar,
-  toText,
+  baziToText,
 } from "@kismet/core"
-import type { Chart, FiveElement, Pillar, PillarKind } from "@kismet/core"
+import type { BaziChart, FiveElement, Pillar, PillarKind } from "@kismet/core"
 import { ELEMENT_TEXT } from "@/lib/bazi"
 
 const KS: readonly PillarKind[] = ["year", "month", "day", "hour"]
@@ -41,7 +41,7 @@ function GanZhi({
 }
 
 /** 四柱主表 */
-function PillarTable({ chart }: { chart: Chart }) {
+function PillarTable({ chart }: { chart: BaziChart }) {
   const grouped = groupShenShaByPillar(chart.shenSha)
   const maxHide = Math.max(...KS.map((k) => chart.pillars[k].hideStems.length))
   const maxShenSha = Math.max(...KS.map((k) => grouped[k].length), 1)
@@ -167,14 +167,14 @@ function PillarTable({ chart }: { chart: Chart }) {
 }
 
 /** 大运、流年、流月三级联动 */
-function FortuneView({ chart }: { chart: Chart }) {
+function FortuneView({ chart }: { chart: BaziChart }) {
   const [decade, setDecade] = React.useState(0)
   const [yearIndex, setYearIndex] = React.useState(0)
 
   const current = chart.decades[decade]
   const years = current?.years ?? []
   const year = years[Math.min(yearIndex, years.length - 1)]
-  const months = year ? monthsOfYear(chart, year.year) : []
+  const months = year ? baziMonthsOfYear(chart, year.year) : []
 
   const chip =
     "flex min-w-16 shrink-0 flex-col items-center gap-1 rounded-md border px-3 py-2 text-xs transition-colors"
@@ -278,7 +278,7 @@ const ELEMENT_BAR: Record<FiveElement, string> = {
   水: "bg-water",
 }
 
-function ElementView({ chart }: { chart: Chart }) {
+function ElementView({ chart }: { chart: BaziChart }) {
   const e = chart.elements
   const max = Math.max(...Object.values(e.scores), 1)
 
@@ -359,10 +359,10 @@ function ElementView({ chart }: { chart: Chart }) {
   )
 }
 
-export function ChartView({ chart }: { chart: Chart }) {
+export function ChartView({ chart }: { chart: BaziChart }) {
   const t = chart.time
   const text = React.useMemo(
-    () => toText(chart, { years: true, months: true, elementDetail: true }),
+    () => baziToText(chart, { years: true, months: true, elementDetail: true }),
     [chart]
   )
 

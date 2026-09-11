@@ -4,14 +4,14 @@ import remarkGfm from "remark-gfm"
 
 import { ChartView } from "@/components/chart-view"
 import { Separator } from "@/components/ui/separator"
-import { paipan } from "@kismet/core"
-import type { Chart, PaipanInput, PaipanOptions } from "@kismet/core"
+import { baziPaipan } from "@kismet/core"
+import type { BaziChart, PaipanInput, BaziOptions } from "@kismet/core"
 import { errorMessage } from "@/lib/api"
 import { formatSavedAt } from "@/lib/reports"
 
 interface ReportViewProps {
   input: PaipanInput
-  options: PaipanOptions
+  options: BaziOptions
   /** 解读正文 Markdown，空即尚未解读 */
   analysis: string
   /** 报告最近一次更新的时间，ISO 字符串 */
@@ -26,10 +26,11 @@ export function ReportView({
   updatedAt,
 }: ReportViewProps) {
   const result = React.useMemo<
-    { chart: Chart; error?: undefined } | { chart?: undefined; error: string }
+    | { chart: BaziChart; error?: undefined }
+    | { chart?: undefined; error: string }
   >(() => {
     try {
-      return { chart: paipan(input, options) }
+      return { chart: baziPaipan(input, options) }
     } catch (e) {
       return { error: errorMessage(e) }
     }

@@ -5,12 +5,16 @@
  * 本项目自实现的部分：真太阳时校正、夏令时、早晚子时分支、神煞表、五行强弱评分
  */
 
-export type Gender = "male" | "female"
+import type {
+  FiveElement,
+  Gender,
+  Location,
+  PaipanInput,
+  TermPoint,
+  TimeInfo,
+} from "../birth/types"
 
 export type PillarKind = "year" | "month" | "day" | "hour"
-
-/** 五行，用于展示的字面值 */
-export type FiveElement = "木" | "火" | "土" | "金" | "水"
 
 /**
  * 五行在序列化结构里的键
@@ -25,31 +29,13 @@ export type HideStemType = "main" | "middle" | "residual"
 /** 起运折算精度 */
 export type QiYunPrecision = "day" | "hour"
 
-/** 排盘输入，时刻一律视为北京时间（UTC+8）的钟表读数 */
-export interface PaipanInput {
-  year: number
-  month: number
-  day: number
-  hour: number
-  minute: number
-  gender: Gender
-  /** 姓名，仅用于结果展示 */
-  name?: string
-  /** 出生地经度，东经为正，用于真太阳时 */
-  longitude?: number
-  /** 出生地纬度，北纬为正，本版排盘不参与计算，随结果回显 */
-  latitude?: number
-  /** 出生地显示名，如「浙江省 杭州市 西湖区」 */
-  location?: string
-}
-
 /**
  * 流派选项
  *
  * 命理各家在时间口径与起运折算上分歧较大，这里的默认值取自本项目的规则文档，
  * 每一项都是可切换的流派选择而非唯一正解，含义与差异见 `README`
  */
-export interface PaipanOptions {
+export interface BaziOptions {
   /** 真太阳时校正，为 `true` 时必须提供 `longitude` */
   useTrueSolarTime: boolean
   /**
@@ -107,41 +93,6 @@ export interface Pillar {
   extraBranches: string[]
   /** 本柱地支是否落在日柱旬空内 */
   empty: boolean
-}
-
-/** 节气交节点 */
-export interface TermPoint {
-  name: string
-  /** `YYYY-MM-DD HH:mm:ss` */
-  time: string
-}
-
-/** 时间校正的全过程 */
-export interface TimeInfo {
-  /** 输入原始时刻 */
-  input: string
-  /** 夏令时回拨后的标准北京时间 */
-  standard: string
-  /** 实际用于排盘的时刻 */
-  effective: string
-  /** 夏令时回拨的分钟数，未命中区间为 0 */
-  daylightSavingMinutes: number
-  /** 经度差偏移分钟数，`(longitude - 120) * 4` */
-  longitudeMinutes: number
-  /** 均时差分钟数 */
-  equationOfTimeMinutes: number
-  /** 地方平太阳时，未开启真太阳时则与 `standard` 相同 */
-  meanSolar: string
-  /** 农历日期 */
-  lunar: string
-  /** 生肖 */
-  zodiac: string
-  /** 所处节气 */
-  term: TermPoint
-  /** 上一个节 */
-  prevJie: TermPoint
-  /** 下一个节 */
-  nextJie: TermPoint
 }
 
 /** 单个五行的得分明细 */
@@ -237,16 +188,12 @@ export interface FortuneMonth {
 }
 
 /** 排盘结果 */
-export interface Chart {
+export interface BaziChart {
   name?: string
   gender: Gender
   input: PaipanInput
-  options: PaipanOptions
-  location?: {
-    name?: string
-    longitude?: number
-    latitude?: number
-  }
+  options: BaziOptions
+  location?: Location
   time: TimeInfo
   pillars: Record<PillarKind, Pillar>
   /** 日主天干 */

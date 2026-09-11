@@ -9,7 +9,7 @@
 import { encode } from "uqr"
 
 import { ELEMENT_KEY_ORDER, ELEMENT_NAMES, PILLAR_LABELS } from "@kismet/core"
-import type { Chart, FiveElement, PillarKind } from "@kismet/core"
+import type { BaziChart, FiveElement, PillarKind } from "@kismet/core"
 
 const WIDTH = 720
 const PADDING = 56
@@ -372,7 +372,11 @@ function parseMarkdown(markdown: string): Block[] {
 }
 
 /** 海报上会出现的全部文字，据此加载字体分片 */
-function textOf(chart: Chart, analysis?: string, shareUrl?: string): string {
+function textOf(
+  chart: BaziChart,
+  analysis?: string,
+  shareUrl?: string
+): string {
   const pillars = KINDS.map((k) => chart.pillars[k])
   return [
     "FOUR PILLARS KISMET 遇见 未具名 乾造 坤造 元男 元女",
@@ -415,7 +419,7 @@ async function loadFonts(text: string) {
 }
 
 /** 眉题、姓名、乾坤造与出生信息 */
-function drawHeader(p: Painter, chart: Chart) {
+function drawHeader(p: Painter, chart: BaziChart) {
   const { palette } = p
 
   p.font(11, HEADING, 600)
@@ -460,7 +464,7 @@ function drawHeader(p: Painter, chart: Chart) {
 }
 
 /** 四柱：柱名、主星、大字干支、藏干十神与纳音 */
-function drawPillars(p: Painter, chart: Chart) {
+function drawPillars(p: Painter, chart: BaziChart) {
   const { palette } = p
   const column = CONTENT / 4
   const centerOf = (i: number) => PADDING + column * i + column / 2
@@ -516,7 +520,7 @@ function drawPillars(p: Painter, chart: Chart) {
 }
 
 /** 左栏五行得分条，右栏日主强弱与胎元、胎息、命宫、身宫 */
-function drawElements(p: Painter, chart: Chart) {
+function drawElements(p: Painter, chart: BaziChart) {
   const { palette } = p
   const e = chart.elements
   const max = Math.max(...Object.values(e.scores), 1)
@@ -712,7 +716,12 @@ function drawFooter(p: Painter, shareUrl?: string) {
 }
 
 /** 从头到尾画一遍，返回总高度；dry 模式下只量尺寸 */
-function paint(p: Painter, chart: Chart, blocks: Block[], shareUrl?: string): number {
+function paint(
+  p: Painter,
+  chart: BaziChart,
+  blocks: Block[],
+  shareUrl?: string
+): number {
   p.y = PADDING
   drawHeader(p, chart)
   p.section()
@@ -739,7 +748,7 @@ function toBlob(canvas: HTMLCanvasElement): Promise<Blob> {
 
 /** 把命盘与解读画成长图，返回 PNG */
 export async function renderPoster(
-  chart: Chart,
+  chart: BaziChart,
   options: PosterOptions = {}
 ): Promise<Blob> {
   const analysis = options.analysis?.trim() || undefined

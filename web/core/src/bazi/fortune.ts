@@ -23,12 +23,12 @@ import {
 import type { ChildLimitProvider } from "tyme4ts"
 
 import { branchTenStarOf, tenStarOf } from "./derived"
-import { formatTime } from "./util"
+import { formatTime } from "../birth/util"
+import type { Gender as ChartGender } from "../birth/types"
 import type {
   DecadeFortuneStep,
   FortuneMonth,
   FortuneYear,
-  Gender as ChartGender,
   QiYun,
   QiYunPrecision,
 } from "./types"

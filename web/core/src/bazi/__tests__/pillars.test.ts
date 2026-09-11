@@ -14,14 +14,15 @@ import {
   SolarTime,
 } from "tyme4ts"
 
-import { paipan } from "../chart"
+import { baziPaipan } from "../chart"
 import { hourStemOf, monthStemOf } from "../pillars"
-import type { PaipanInput, PillarKind } from "../types"
+import type { PaipanInput } from "../../birth/types"
+import type { PillarKind } from "../types"
 
 const KS: readonly PillarKind[] = ["year", "month", "day", "hour"]
 
 function pillarsOf(input: PaipanInput, lateZiAsNextDay = false): string[] {
-  const chart = paipan(input, { lateZiAsNextDay })
+  const chart = baziPaipan(input, { lateZiAsNextDay })
   return KS.map((k) => chart.pillars[k].sixtyCycle)
 }
 
@@ -52,7 +53,7 @@ function around(term: SolarTerm): { before: SolarTime; after: SolarTime } {
 
 describe("测试 1：日柱基准", () => {
   it("1949-10-01 的日柱是甲子", () => {
-    const chart = paipan(male(1949, 10, 1, 12, 0))
+    const chart = baziPaipan(male(1949, 10, 1, 12, 0))
     expect(chart.pillars.day.sixtyCycle).toBe("甲子")
   })
 
@@ -74,7 +75,7 @@ describe("测试 2：年柱以立春交节为界", () => {
       const term = SolarTerm.fromName(year, "立春")
       const { before, after } = around(term)
 
-      const b = paipan(
+      const b = baziPaipan(
         male(
           before.getYear(),
           before.getMonth(),
@@ -83,7 +84,7 @@ describe("测试 2：年柱以立春交节为界", () => {
           before.getMinute()
         )
       )
-      const a = paipan(
+      const a = baziPaipan(
         male(
           after.getYear(),
           after.getMonth(),
@@ -119,7 +120,7 @@ describe("测试 3：月柱以十二节为界", () => {
   ] as const) {
     it(`${year} 年${name}前后一分钟，月支由${branchBefore}转${branchAfter}`, () => {
       const { before, after } = around(SolarTerm.fromName(year, name))
-      const b = paipan(
+      const b = baziPaipan(
         male(
           before.getYear(),
           before.getMonth(),
@@ -128,7 +129,7 @@ describe("测试 3：月柱以十二节为界", () => {
           before.getMinute()
         )
       )
-      const a = paipan(
+      const a = baziPaipan(
         male(
           after.getYear(),
           after.getMonth(),
@@ -190,8 +191,10 @@ describe("测试 4：早晚子时", () => {
   }
 
   it("晚子时两派的时干各自跟随所用的那个日干", () => {
-    const early = paipan(male(1990, 5, 3, 23, 30), { lateZiAsNextDay: false })
-    const late = paipan(male(1990, 5, 3, 23, 30), { lateZiAsNextDay: true })
+    const early = baziPaipan(male(1990, 5, 3, 23, 30), {
+      lateZiAsNextDay: false,
+    })
+    const late = baziPaipan(male(1990, 5, 3, 23, 30), { lateZiAsNextDay: true })
     for (const chart of [early, late]) {
       expect(chart.pillars.hour.branch).toBe("子")
       expect(chart.pillars.hour.stem).toBe(
@@ -204,8 +207,10 @@ describe("测试 4：早晚子时", () => {
   })
 
   it("年柱与月柱不受早晚子时影响", () => {
-    const early = paipan(male(1990, 5, 3, 23, 30), { lateZiAsNextDay: false })
-    const late = paipan(male(1990, 5, 3, 23, 30), { lateZiAsNextDay: true })
+    const early = baziPaipan(male(1990, 5, 3, 23, 30), {
+      lateZiAsNextDay: false,
+    })
+    const late = baziPaipan(male(1990, 5, 3, 23, 30), { lateZiAsNextDay: true })
     expect(early.pillars.year.sixtyCycle).toBe(late.pillars.year.sixtyCycle)
     expect(early.pillars.month.sixtyCycle).toBe(late.pillars.month.sixtyCycle)
   })
@@ -230,7 +235,7 @@ describe("五虎遁与五鼠遁公式与库的排法一致", () => {
       for (let i = 0; i < 12; i++) {
         const term = SolarTerm.fromIndex(year, 3 + i * 2)
         const { after } = around(term)
-        const chart = paipan(
+        const chart = baziPaipan(
           male(
             after.getYear(),
             after.getMonth(),

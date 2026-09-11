@@ -5,35 +5,10 @@
  * 算法层一律走 `tyme4ts`，本文件只放 `tyme4ts` 未直接暴露、或界面渲染需要的常量
  */
 
-import type { ElementKey, FiveElement, HideStemType, PillarKind } from "../types"
+import type { ElementKey, HideStemType, PillarKind } from "../types"
+import type { FiveElement } from "../../birth/types"
 
-export const HEAVEN_STEMS = [
-  "甲",
-  "乙",
-  "丙",
-  "丁",
-  "戊",
-  "己",
-  "庚",
-  "辛",
-  "壬",
-  "癸",
-] as const
-
-export const EARTH_BRANCHES = [
-  "子",
-  "丑",
-  "寅",
-  "卯",
-  "辰",
-  "巳",
-  "午",
-  "未",
-  "申",
-  "酉",
-  "戌",
-  "亥",
-] as const
+export { EARTH_BRANCHES, HEAVEN_STEMS } from "../../birth/constants"
 
 export const FIVE_ELEMENTS: readonly FiveElement[] = [
   "木",

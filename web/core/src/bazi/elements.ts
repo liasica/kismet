@@ -1,12 +1,13 @@
 /**
  * 五行强弱评分
  *
- * 评分规则各家不同，这里把规则收在可替换的策略里，`PaipanOptions.elementStrategy`
+ * 评分规则各家不同，这里把规则收在可替换的策略里，`BaziOptions.elementStrategy`
  * 选哪个策略就用哪套权重，新增流派只需再注册一个策略，不改调用方
  */
 
 import { Element, HeavenStem } from "tyme4ts"
 
+import type { FiveElement } from "../birth/types"
 import {
   ELEMENT_KEY_ORDER,
   ELEMENT_KEYS,
@@ -18,7 +19,6 @@ import type {
   ElementContribution,
   ElementKey,
   ElementReport,
-  FiveElement,
   Pillar,
   PillarKind,
 } from "./types"

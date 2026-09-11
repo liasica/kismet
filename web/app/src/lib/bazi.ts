@@ -2,7 +2,7 @@
  * 八字模块的默认选项与输入组装
  */
 
-import type { FiveElement, PaipanInput, PaipanOptions } from "@kismet/core"
+import type { FiveElement, PaipanInput, BaziOptions } from "@kismet/core"
 
 import {
   birthplaceOf,
@@ -20,7 +20,7 @@ export const ELEMENT_TEXT: Record<FiveElement, string> = {
   水: "text-water",
 }
 
-export const INITIAL_OPTIONS: PaipanOptions = {
+export const INITIAL_OPTIONS: BaziOptions = {
   useTrueSolarTime: true,
   useDaylightSaving: false,
   lateZiAsNextDay: false,

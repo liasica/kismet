@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { isInChinaDst } from "@kismet/core"
-import type { PaipanOptions, QiYunPrecision } from "@kismet/core"
+import type { BaziOptions, QiYunPrecision } from "@kismet/core"
 import type { Moment } from "@/lib/birth-info"
 
 const QI_YUN_ITEMS = [
@@ -24,8 +24,8 @@ const QI_YUN_ITEMS = [
 ]
 
 interface BaziOptionsFieldsProps {
-  value: PaipanOptions
-  onChange: (value: PaipanOptions) => void
+  value: BaziOptions
+  onChange: (value: BaziOptions) => void
   /** 表单里当前填的时刻，用来提示夏令时开关是否有效 */
   moment?: Moment
 }
@@ -36,8 +36,7 @@ export function BaziOptionsFields({
   onChange,
   moment,
 }: BaziOptionsFieldsProps) {
-  const patch = (part: Partial<PaipanOptions>) =>
-    onChange({ ...value, ...part })
+  const patch = (part: Partial<BaziOptions>) => onChange({ ...value, ...part })
 
   // 夏令时开关只在 1986 至 1991 年的区间内有效果，其余时候标出来
   const dstEffective =

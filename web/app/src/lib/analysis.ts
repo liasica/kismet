@@ -2,7 +2,7 @@
  * 命理解读：把排盘输入交给 Go 服务，服务端排盘、拼提示词并流式转发 DeepSeek 的回复
  */
 
-import type { PaipanInput, PaipanOptions } from "@kismet/core"
+import type { PaipanInput, BaziOptions } from "@kismet/core"
 
 import { API_BASE, readError } from "@/lib/api"
 
@@ -10,7 +10,7 @@ import { API_BASE, readError } from "@/lib/api"
 export interface AnalysisRecord {
   reportId: string
   input: PaipanInput
-  options: PaipanOptions
+  options: BaziOptions
 }
 
 /** OpenAI 兼容的流式片段，只取要用的字段 */

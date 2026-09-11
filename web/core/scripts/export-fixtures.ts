@@ -12,14 +12,15 @@
 import { writeFileSync } from "node:fs"
 import { SolarTerm, SolarTime } from "tyme4ts"
 
-import { paipan } from "../src/bazi"
-import type { PaipanInput, PaipanOptions } from "../src/bazi/types"
+import { baziPaipan } from "../src/bazi"
+import type { PaipanInput } from "../src/birth/types"
+import type { BaziOptions } from "../src/bazi/types"
 
 interface Fixture {
   /** 用例说明，比对失败时用它定位 */
   label: string
   input: PaipanInput
-  options: Partial<PaipanOptions>
+  options: Partial<BaziOptions>
   chart: unknown
 }
 
@@ -28,18 +29,18 @@ const fixtures: Fixture[] = []
 function add(
   label: string,
   input: PaipanInput,
-  options: Partial<PaipanOptions> = {},
+  options: Partial<BaziOptions> = {},
 ) {
   fixtures.push({
     label,
     input,
     options,
-    chart: JSON.parse(JSON.stringify(paipan(input, options))),
+    chart: JSON.parse(JSON.stringify(baziPaipan(input, options))),
   })
 }
 
 /** 默认把流年压到 12 岁，控制单个用例的体积 */
-const SHORT: Partial<PaipanOptions> = { maxAge: 12 }
+const SHORT: Partial<BaziOptions> = { maxAge: 12 }
 
 const male = (
   year: number,
@@ -84,7 +85,7 @@ add("基准盘 count 策略", male(1990, 5, 3, 12, 30, 114.0833), {
 })
 
 // 五个公开生日，问真口径
-const wz: Partial<PaipanOptions> = {
+const wz: Partial<BaziOptions> = {
   useTrueSolarTime: true,
   lateZiAsNextDay: true,
   qiYunPrecision: "hour",

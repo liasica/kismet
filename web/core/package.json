@@ -3,9 +3,9 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "八字排盘引擎与中国行政区划数据，纯计算，无 UI 与网络依赖",
+  "description": "八字与紫微斗数排盘引擎、中国行政区划数据，纯计算，无 UI 与网络依赖",
   "exports": {
-    ".": "./src/bazi/index.ts",
+    ".": "./src/index.ts",
     "./region": "./src/region/index.ts"
   },
   "scripts": {

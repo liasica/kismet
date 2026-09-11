@@ -7,8 +7,9 @@
 
 import { parseArgs } from "node:util"
 
-import { paipan, toText } from "../src/bazi"
-import type { Gender, QiYunPrecision } from "../src/bazi/types"
+import { baziPaipan, baziToText } from "../src/bazi"
+import type { Gender } from "../src/birth/types"
+import type { QiYunPrecision } from "../src/bazi/types"
 
 const USAGE = `用法：pnpm paipan [选项]
 
@@ -81,7 +82,7 @@ if (values.qiyun !== "day" && values.qiyun !== "hour") {
   fail(`--qiyun 只能是 day 或 hour，收到 ${values.qiyun}`)
 }
 
-const chart = paipan(
+const chart = baziPaipan(
   {
     year: Number(dateMatch[1]),
     month: Number(dateMatch[2]),
@@ -109,6 +110,6 @@ if (values.json) {
   process.stdout.write(`${JSON.stringify(chart, null, 2)}\n`)
 } else {
   process.stdout.write(
-    `${toText(chart, { years: values.years, months: values.months, elementDetail: values.detail })}\n`
+    `${baziToText(chart, { years: values.years, months: values.months, elementDetail: values.detail })}\n`
   )
 }

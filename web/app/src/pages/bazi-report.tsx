@@ -12,8 +12,8 @@ import { ChartView } from "@/components/chart-view"
 import { ShareDialog } from "@/components/share-dialog"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { paipan } from "@kismet/core"
-import type { Chart } from "@kismet/core"
+import { baziPaipan } from "@kismet/core"
+import type { BaziChart } from "@kismet/core"
 import { toPaipanInput } from "@/lib/bazi"
 import {
   deleteReport,
@@ -36,12 +36,13 @@ export function BaziReportPage() {
   const [analysis, setAnalysis] = React.useState(saved?.analysis ?? "")
 
   const result = React.useMemo<
-    { chart: Chart; error?: undefined } | { chart?: undefined; error: string }
+    | { chart: BaziChart; error?: undefined }
+    | { chart?: undefined; error: string }
   >(() => {
     const input = toPaipanInput(session.birth)
     if (!input) return { error: "请先填写出生时间与性别" }
     try {
-      return { chart: paipan(input, session.options) }
+      return { chart: baziPaipan(input, session.options) }
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) }
     }

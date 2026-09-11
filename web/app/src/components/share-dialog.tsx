@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/input-group"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { Chart } from "@kismet/core"
+import type { BaziChart } from "@kismet/core"
 import { errorMessage } from "@/lib/api"
 import { renderPoster } from "@/lib/poster"
 import {
@@ -47,7 +47,7 @@ type ShareState = ShareInfo | null | undefined
 
 interface ShareDialogProps {
   reportId: string
-  chart: Chart
+  chart: BaziChart
   /** 最新的解读正文，整段排进长图 */
   analysis: string
 }
@@ -125,7 +125,7 @@ export function ShareDialog({ reportId, chart, analysis }: ShareDialogProps) {
 
 interface LinkPanelProps {
   reportId: string
-  chart: Chart
+  chart: BaziChart
   analysis: string
   share: ShareState
   onChange: (share: ShareInfo | null) => void
@@ -280,7 +280,7 @@ function LinkPanel({
 }
 
 interface PosterPanelProps {
-  chart: Chart
+  chart: BaziChart
   analysis: string
   share: ShareState
 }

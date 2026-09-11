@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest"
 import { EarthBranch, HeavenStem, SixtyCycle, TenStar, Terrain } from "tyme4ts"
 
-import { paipan } from "../chart"
+import { baziPaipan } from "../chart"
 import { EARTH_BRANCHES, HEAVEN_STEMS } from "../data/constants"
 import { SHEN_SHA_RULES } from "../data/shensha"
 import { matchShenSha } from "../shensha"
@@ -223,7 +223,7 @@ describe("神煞表", () => {
 })
 
 describe("神煞匹配", () => {
-  const pillars = paipan({
+  const pillars = baziPaipan({
     year: 1990,
     month: 5,
     day: 3,
@@ -271,7 +271,7 @@ describe("神煞匹配", () => {
 
   it("魁罡不受 skipBasePillar 影响，基准与目标本就是同一柱", () => {
     // 1904-08-22 00:30 的日柱是戊子，换一个魁罡日来验证
-    const kuiGang = paipan({
+    const kuiGang = baziPaipan({
       year: 1990,
       month: 5,
       day: 15,
@@ -301,7 +301,7 @@ describe("神煞匹配", () => {
 
 describe("选项合并", () => {
   it("值为 undefined 的键不会冲掉默认值", () => {
-    const chart = paipan(
+    const chart = baziPaipan(
       { year: 1990, month: 5, day: 3, hour: 12, minute: 30, gender: "male" },
       {
         qiYunPrecision: undefined,
@@ -315,7 +315,7 @@ describe("选项合并", () => {
   })
 
   it("显式给出的键照常覆盖", () => {
-    const chart = paipan(
+    const chart = baziPaipan(
       { year: 1990, month: 5, day: 3, hour: 12, minute: 30, gender: "male" },
       { qiYunPrecision: "hour", maxAge: 60 },
     )
