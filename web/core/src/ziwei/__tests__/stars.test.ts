@@ -40,7 +40,10 @@ describe("安紫微", () => {
   it("与安紫微表逐格一致", () => {
     for (const [bureau, row] of Object.entries(ZIWEI_TABLE)) {
       for (let day = 1; day <= 30; day++) {
-        expect(B(ziweiBranchOf(Number(bureau), day)), `局 ${bureau} 日 ${day}`).toBe(row[day - 1])
+        expect(
+          B(ziweiBranchOf(Number(bureau), day)),
+          `局 ${bureau} 日 ${day}`
+        ).toBe(row[day - 1])
       }
     }
   })
@@ -54,7 +57,8 @@ describe("安紫微", () => {
 
 describe("十四正曜", () => {
   it("紫微在子则天府在辰，紫微在寅申则同宫", () => {
-    const at = (bureau: number, day: number) => placeStars(context({ bureau, day })).major
+    const at = (bureau: number, day: number) =>
+      placeStars(context({ bureau, day })).major
     // 水二局初二十二日紫微在子
     const a = at(2, 22)
     expect(B(a.紫微)).toBe("子")
@@ -93,7 +97,11 @@ describe("辅佐煞与杂曜", () => {
 
   it("壬辰年卯时火星巳、铃星丑；申子辰年天马在寅", () => {
     const minor = placeStars(
-      context({ yearStem: stemIndex("壬"), yearBranch: branchIndex("辰"), hour: 3 })
+      context({
+        yearStem: stemIndex("壬"),
+        yearBranch: branchIndex("辰"),
+        hour: 3,
+      })
     ).minor
     expect(B(minor.火星)).toBe("巳")
     expect(B(minor.铃星)).toBe("丑")
@@ -131,36 +139,52 @@ describe("辅佐煞与杂曜", () => {
     expect(B(zi.劫煞)).toBe("巳")
     expect(B(zi.华盖)).toBe("辰")
     expect(B(zi.咸池)).toBe("酉")
-    expect(B(placeStars(context({ yearBranch: branchIndex("午") })).adjective.大耗)).toBe("丑")
-    expect(B(placeStars(context({ yearBranch: branchIndex("未") })).adjective.大耗)).toBe("子")
+    expect(
+      B(placeStars(context({ yearBranch: branchIndex("午") })).adjective.大耗)
+    ).toBe("丑")
+    expect(
+      B(placeStars(context({ yearBranch: branchIndex("未") })).adjective.大耗)
+    ).toBe("子")
   })
 
   it("戊午年旬空子丑、截空子丑，阳干正空在阳宫；辛年截空辰巳而正空在巳", () => {
     const wuWu = placeStars(
-      context({ yearStem: stemIndex("戊"), yearBranch: branchIndex("午"), yang: true })
+      context({
+        yearStem: stemIndex("戊"),
+        yearBranch: branchIndex("午"),
+        yang: true,
+      })
     ).adjective
     expect(B(wuWu.旬空)).toBe("子")
     expect(B(wuWu.旬空傍)).toBe("丑")
     expect(B(wuWu.截空)).toBe("子")
     expect(B(wuWu.截空傍)).toBe("丑")
-    const xin = placeStars(context({ yearStem: stemIndex("辛"), yang: false })).adjective
+    const xin = placeStars(
+      context({ yearStem: stemIndex("辛"), yang: false })
+    ).adjective
     expect(B(xin.截空)).toBe("巳")
     expect(B(xin.截空傍)).toBe("辰")
   })
 
   it("天伤天使：顺者伤在交友使在疾厄，逆者互换", () => {
     // 命宫在亥，交友宫在辰、疾厄宫在午
-    const forward = placeStars(context({ lifePalace: 11, forward: true })).adjective
+    const forward = placeStars(
+      context({ lifePalace: 11, forward: true })
+    ).adjective
     expect(B(forward.天伤)).toBe("辰")
     expect(B(forward.天使)).toBe("午")
-    const backward = placeStars(context({ lifePalace: 11, forward: false })).adjective
+    const backward = placeStars(
+      context({ lifePalace: 11, forward: false })
+    ).adjective
     expect(B(backward.天伤)).toBe("午")
     expect(B(backward.天使)).toBe("辰")
   })
 
   it("日系：三台八座从辅弼起初一，恩光天贵从昌曲起初一再退一步", () => {
     // 正月子时：左辅辰 右弼戌 文昌戌 文曲辰；初十
-    const adjective = placeStars(context({ month: 1, hour: 0, day: 10 })).adjective
+    const adjective = placeStars(
+      context({ month: 1, hour: 0, day: 10 })
+    ).adjective
     expect(B(adjective.三台)).toBe("丑")
     expect(B(adjective.八座)).toBe("丑")
     expect(B(adjective.恩光)).toBe("午")
