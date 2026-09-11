@@ -2,6 +2,7 @@ package bazi
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/6tail/tyme4go/tyme"
 )
@@ -293,4 +294,67 @@ func BuildFortuneMonths(year int, dayStem tyme.HeavenStem) ([]FortuneMonth, erro
 		})
 	}
 	return out, nil
+}
+
+// FortunePosition 某个时刻在大运流年上的位置，解读时据此告诉模型「现在走到哪一步」
+type FortunePosition struct {
+	// Year 所处干支年的公历年份，立春前算前一年
+	Year int
+	// Age 虚岁
+	Age int
+	// SixtyCycle 所处流年的干支
+	SixtyCycle string
+	// NextSixtyCycle 下一个流年的干支
+	NextSixtyCycle string
+	// Decade 所处的大运，起运之前或超出 MaxAge 时为 nil
+	Decade *DecadeFortuneStep
+}
+
+// FortuneAt 某个时刻落在哪个流年与大运上
+//
+// 流年以立春为界；虚岁与大运优先从大运表里取，表里没有这一年时虚岁按公历年份差算
+func FortuneAt(chart Chart, now time.Time) (FortunePosition, error) {
+	t, err := tyme.SolarTime{}.FromYmdHms(
+		now.Year(),
+		int(now.Month()),
+		now.Day(),
+		now.Hour(),
+		now.Minute(),
+		now.Second(),
+	)
+	if err != nil {
+		return FortunePosition{}, err
+	}
+	year := SixtyCycleYearOf(*t)
+
+	position := FortunePosition{Year: year, Age: year - chart.Input.Year + 1}
+	if position.SixtyCycle, err = sixtyCycleNameOfYear(year); err != nil {
+		return FortunePosition{}, err
+	}
+	if position.NextSixtyCycle, err = sixtyCycleNameOfYear(year + 1); err != nil {
+		return FortunePosition{}, err
+	}
+
+	for i := range chart.Decades {
+		decade := &chart.Decades[i]
+		if year < decade.StartYear || year > decade.EndYear {
+			continue
+		}
+		position.Decade = decade
+		for _, y := range decade.Years {
+			if y.Year == year {
+				position.Age = y.Age
+			}
+		}
+	}
+	return position, nil
+}
+
+// sixtyCycleNameOfYear 某个公历年份对应的干支年名
+func sixtyCycleNameOfYear(year int) (string, error) {
+	sy, err := tyme.SixtyCycleYear{}.FromYear(year)
+	if err != nil {
+		return "", err
+	}
+	return sy.GetSixtyCycle().GetName(), nil
 }

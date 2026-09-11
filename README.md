@@ -72,7 +72,7 @@ Go 服务只做请求解析与转发，不含排盘逻辑。环境变量：
 | `DB_PATH` | `kismet.db` | 报告与分享的数据文件 |
 | `DEEPSEEK_API_KEY` | 空 | 未设置时解读接口返回 503 |
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容的接口地址 |
-| `DEEPSEEK_MODEL` | `deepseek-v4-flash` | 模型名 |
+| `DEEPSEEK_MODEL` | `deepseek-flash` | 模型名 |
 | `ALLOWED_ORIGINS` | 空 | 跨域来源，逗号分隔，未设置时放开 |
 
 | 方法与路径 | 说明 |
@@ -80,7 +80,7 @@ Go 服务只做请求解析与转发，不含排盘逻辑。环境变量：
 | `GET /health` | 存活检查 |
 | `GET /api/options` | 选项默认值与可用的五行评分策略，客户端不必硬编码 |
 | `POST /api/paipan` | 排盘，加 `?format=text` 返回竖排文字 |
-| `POST /api/analyze` | 命理解读，收 `{"prompt", "reportId", "input", "options"}`，以 SSE 流式返回 DeepSeek 的回复；带 `reportId` 时输入与解读正文存成报告 |
+| `POST /api/analyze` | 命理解读，收 `{"reportId", "input", "options"}`，服务端排盘并拼提示词，以 SSE 流式返回 DeepSeek 的回复；带 `reportId` 时输入与解读正文存成报告 |
 | `GET /api/reports/{id}/share` | 报告的分享状态，未分享返回 404 |
 | `POST /api/reports/{id}/share` | 开启分享或改密码，收 `{"password", "input", "options", "analysis"}`，返回 `{"hash", "locked"}` |
 | `DELETE /api/reports/{id}/share` | 取消分享 |

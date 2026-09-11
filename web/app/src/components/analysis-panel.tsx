@@ -5,7 +5,7 @@ import remarkGfm from "remark-gfm"
 
 import { Button } from "@/components/ui/button"
 import type { Chart } from "@kismet/core"
-import { buildAnalysisPrompt, streamAnalysis } from "@/lib/analysis"
+import { streamAnalysis } from "@/lib/analysis"
 
 type Status = "idle" | "thinking" | "streaming" | "done" | "error"
 
@@ -20,7 +20,7 @@ interface AnalysisPanelProps {
 }
 
 /**
- * 命理解读：把排盘结果交给 DeepSeek，流式渲染 Markdown 回复
+ * 命理解读：把排盘输入交给服务端，流式渲染 DeepSeek 的 Markdown 回复
  *
  * 换盘后由父组件换 `key` 重建，正在进行的请求随组件卸载中止
  */
@@ -30,7 +30,6 @@ export function AnalysisPanel({
   initialText,
   onComplete,
 }: AnalysisPanelProps) {
-  const prompt = React.useMemo(() => buildAnalysisPrompt(chart), [chart])
   const [status, setStatus] = React.useState<Status>(
     initialText ? "done" : "idle"
   )
@@ -50,7 +49,6 @@ export function AnalysisPanel({
     let full = ""
     try {
       await streamAnalysis(
-        prompt,
         { reportId, input: chart.input, options: chart.options },
         (delta) => {
           full += delta

@@ -131,19 +131,30 @@ func resolveChartOptions(input bazi.Input, patch *bazi.OptionsPatch) (bazi.Optio
 	return options, nil
 }
 
-// validateChart 校验一份要保存的排盘输入与选项，并实际排一次盘确认能算出来
-func validateChart(input bazi.Input, patch *bazi.OptionsPatch) (bazi.Options, error) {
+// resolveChart 校验排盘输入与选项并排盘
+func resolveChart(input bazi.Input, patch *bazi.OptionsPatch) (bazi.Chart, error) {
 	if err := checkInput(input); err != nil {
-		return bazi.Options{}, err
+		return bazi.Chart{}, err
 	}
 	options, err := resolveChartOptions(input, patch)
 	if err != nil {
+		return bazi.Chart{}, err
+	}
+
+	var chart bazi.Chart
+	if chart, err = bazi.Paipan(input, options); err != nil {
+		return bazi.Chart{}, badRequest("排盘失败：%s", err.Error())
+	}
+	return chart, nil
+}
+
+// validateChart 校验一份要保存的排盘输入与选项，并实际排一次盘确认能算出来
+func validateChart(input bazi.Input, patch *bazi.OptionsPatch) (bazi.Options, error) {
+	chart, err := resolveChart(input, patch)
+	if err != nil {
 		return bazi.Options{}, err
 	}
-	if _, err = bazi.Paipan(input, options); err != nil {
-		return bazi.Options{}, badRequest("排盘失败：%s", err.Error())
-	}
-	return options, nil
+	return chart.Options, nil
 }
 
 // checkFloatRange 校验可选浮点数的范围

@@ -1,51 +1,16 @@
 /**
- * 命理解读：拼提示词，经 Go 服务请求 DeepSeek 流式输出
+ * 命理解读：把排盘输入交给 Go 服务，服务端排盘、拼提示词并流式转发 DeepSeek 的回复
  */
 
-import { toText } from "@kismet/core"
-import type { Chart, PaipanInput, PaipanOptions } from "@kismet/core"
+import type { PaipanInput, PaipanOptions } from "@kismet/core"
 
 import { API_BASE, readError } from "@/lib/api"
 
-/** 随解读请求存到服务端的报告：id、排盘输入与选项，解读结束后正文写回同一份 */
+/** 解读请求：报告 id、排盘输入与选项，服务端据此排盘并存成报告，解读结束后正文写回同一份 */
 export interface AnalysisRecord {
   reportId: string
   input: PaipanInput
   options: PaipanOptions
-}
-
-/** 把「今天」写进提示词，模型据此判断「这两年」指哪两年 */
-function todayText(): string {
-  const now = new Date()
-  return `${now.getFullYear()} 年 ${now.getMonth() + 1} 月 ${now.getDate()} 日`
-}
-
-function pad(n: number): string {
-  return String(n).padStart(2, "0")
-}
-
-/** 由排盘结果拼出解读提示词 */
-export function buildAnalysisPrompt(chart: Chart): string {
-  const i = chart.input
-  const birth = `${i.year} 年 ${i.month} 月 ${i.day} 日 ${pad(i.hour)}:${pad(i.minute)}`
-  const who = chart.name ? ` ${chart.name} ` : ""
-  const place = chart.location?.name ?? "不详"
-  const gender = chart.gender === "male" ? "男" : "女"
-  const text = toText(chart, { years: true })
-
-  return [
-    "你是一位精通传统命理与现代运势分析的大师。",
-    `我${who}出生于阳曆 ${birth}，地点为 ${place}，性別 ${gender}。`,
-    "这是我用专业排盘软件得出的文字命盘/八字结构：",
-    text,
-    "",
-    `今天是 ${todayText()}。`,
-    "",
-    "请不要给模糊的安慰话，请直接客观地告诉我：",
-    "- 我命格里最强的优势与最致命的盲点。",
-    "- 我这两年的事业、财富与感情走势。",
-    "- 给我具体、可执行的开运或避坑建议。",
-  ].join("\n")
 }
 
 /** OpenAI 兼容的流式片段，只取要用的字段 */
@@ -63,7 +28,6 @@ interface StreamChunk {
  * 思考模式下正文之前先有一段 `reasoning_content`，只用来通知调用方模型在思考
  */
 export async function streamAnalysis(
-  prompt: string,
   record: AnalysisRecord,
   onDelta: (text: string) => void,
   signal: AbortSignal,
@@ -74,7 +38,7 @@ export async function streamAnalysis(
     res = await fetch(`${API_BASE}/api/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, ...record }),
+      body: JSON.stringify(record),
       signal,
     })
   } catch (e) {

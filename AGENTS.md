@@ -69,7 +69,7 @@ make fixtures   # 重新生成黄金基准并用 Go 侧比对
 | `DB_PATH` | `kismet.db` | 报告与分享的数据文件，镜像里设为 `/data/kismet.db` 并挂成卷 |
 | `DEEPSEEK_API_KEY` | 空 | 未设置时解读接口返回 503，其余功能不受影响 |
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容的接口地址 |
-| `DEEPSEEK_MODEL` | `deepseek-v4-flash` | 模型名 |
+| `DEEPSEEK_MODEL` | `deepseek-flash` | 模型名 |
 | `ALLOWED_ORIGINS` | 空 | 跨域来源，逗号分隔，未设置时放开 |
 | `VITE_API_BASE` | 空 | 前端构建时的接口地址，空即同源 |
 
@@ -83,7 +83,7 @@ make fixtures   # 重新生成黄金基准并用 Go 侧比对
 
 ## 命理解读
 
-`POST /api/analyze` 收 `{"prompt": string, "reportId", "input", "options"}`，服务端加上模型名转发给 DeepSeek 的 `chat/completions`，`stream: true`，把上游 SSE 逐行写回；思考模式下流里先出 `reasoning_content` 再出 `content`，服务端把思考过程按行打到控制台，前端只渲染正文，思考阶段显示「思考中」。提示词由前端 `web/app/src/lib/analysis.ts` 拼装，把姓名、出生时刻、出生地、性别与 `toText(chart, { years: true })` 的文字排盘填进固定模板。界面上不出现所用模型的名字，也不提供提示词的查看入口。
+`POST /api/analyze` 收 `{"reportId", "input", "options"}`，服务端按输入排盘、拼出提示词，加上模型名转发给 DeepSeek 的 `chat/completions`，`stream: true`，把上游 SSE 逐行写回；思考模式下流里先出 `reasoning_content` 再出 `content`，服务端把思考过程按行打到控制台，前端只渲染正文，思考阶段显示「思考中」。提示词在 `internal/httpapi/prompt.go`：system 消息放角色与规则（以命盘为准不重新推算、每个结论点出命盘依据、不写安慰话与免责声明、健康只说方向、固定三个二级标题与可用的 Markdown 元素、篇幅 1500 到 2500 字），user 消息放命主信息、今天的日期（北京时间）、虚岁、所处大运、当前与下一个流年（以立春为界，由 `bazi.FortuneAt` 算）、`bazi.ToText` 带流年的文字命盘与三个问题。界面上不出现所用模型的名字，也不提供提示词的查看入口。
 
 带 `reportId` 时服务端在转发前把排盘输入与选项存成报告，流结束（含客户端中途断开）后把已生成的正文写回同一份，`reportId` 由前端在提交表单时生成（128 位随机数的 32 位十六进制），持有 id 即可管理这份报告的分享。
 

@@ -16,13 +16,11 @@ import (
 	"github.com/liasica/kismet/internal/bazi"
 )
 
-// 命理解读经 DeepSeek 完成，这一层只做转发：把提示词包成 chat completions 请求，
+// 命理解读经 DeepSeek 完成：按请求里的排盘输入排盘、拼出提示词（见 prompt.go）包成 chat completions 请求，
 // 再把上游的 SSE 逐行写回客户端，客户端按 OpenAI 兼容格式解析；
 // 思考模式下流里先出 reasoning_content 再出 content，思考过程同时打到控制台。
 // 请求带 reportId 时，排盘输入在解读开始前存成报告，解读正文在流结束后写回同一份报告
 const (
-	// analyzeRequestBytes 请求体上限，提示词含完整流年也只有几十 KB
-	analyzeRequestBytes = 256 << 10
 	// analyzeWriteTimeout 单次解读的写超时，流式输出远超服务默认的写超时
 	analyzeWriteTimeout = 5 * time.Minute
 	// analyzeMaxTokens 生成长度上限，思考与正文都算在内
@@ -31,7 +29,7 @@ const (
 	upstreamErrorBytes = 64 << 10
 
 	defaultDeepSeekBaseURL = "https://api.deepseek.com"
-	defaultDeepSeekModel   = "deepseek-v4-flash"
+	defaultDeepSeekModel   = "deepseek-flash"
 )
 
 // analyzeClient 不设整体超时，流式回复可能持续几分钟，只限制等首字节的时间
@@ -70,10 +68,9 @@ func DeepSeekConfigFromEnv() DeepSeekConfig {
 	return config
 }
 
-// analyzeRequest 解读请求体，提示词由客户端拼好
+// analyzeRequest 解读请求体：排盘输入与选项，服务端据此排盘并拼提示词
 type analyzeRequest struct {
-	Prompt string `json:"prompt"`
-	// ReportID 报告 id，带上时输入与解读结果存成报告，此时 input 必填；为空则只转发
+	// ReportID 报告 id，带上时输入与解读结果存成报告；为空则只解读不保存
 	ReportID string             `json:"reportId"`
 	Input    *bazi.Input        `json:"input"`
 	Options  *bazi.OptionsPatch `json:"options"`
@@ -81,11 +78,9 @@ type analyzeRequest struct {
 
 // analyzeCommand 解析后的解读请求
 type analyzeCommand struct {
-	Prompt string
 	// ReportID 为空则不保存
 	ReportID string
-	Input    bazi.Input
-	Options  bazi.Options
+	Chart    bazi.Chart
 }
 
 // chatMessage OpenAI 兼容的对话消息
@@ -147,14 +142,20 @@ func (s *Server) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 
 	// 输入先存成报告，解读中途断开也留得下已生成的正文
 	if cmd.ReportID != "" {
-		if err = s.reports.Upsert(cmd.ReportID, cmd.Input, cmd.Options); err != nil {
+		if err = s.reports.Upsert(cmd.ReportID, cmd.Chart.Input, cmd.Chart.Options); err != nil {
 			writeError(w, err)
 			return
 		}
 	}
 
-	resp, err := s.requestDeepSeek(r.Context(), cmd.Prompt)
-	if err != nil {
+	var messages []chatMessage
+	if messages, err = analysisMessages(cmd.Chart, time.Now()); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	var resp *http.Response
+	if resp, err = s.requestDeepSeek(r.Context(), messages); err != nil {
 		writeError(w, err)
 		return
 	}
@@ -169,39 +170,31 @@ func (s *Server) handleAnalyze(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// parseAnalyzeRequest 解析并校验解读请求，带 reportId 时连排盘输入一起校验
+// parseAnalyzeRequest 解析并校验解读请求：排盘输入必填并实际排盘，带 reportId 时一并校验 id
 func parseAnalyzeRequest(r *http.Request) (cmd analyzeCommand, err error) {
 	var req analyzeRequest
-	if err = decodeJSON(r, analyzeRequestBytes, &req); err != nil {
-		return
-	}
-
-	cmd.Prompt = strings.TrimSpace(req.Prompt)
-	if cmd.Prompt == "" {
-		err = badRequest("prompt 缺失")
-		return
-	}
-	if req.ReportID == "" {
-		return
-	}
-
-	if cmd.ReportID, err = requireReportID(req.ReportID); err != nil {
+	if err = decodeJSON(r, maxRequestBytes, &req); err != nil {
 		return
 	}
 	if req.Input == nil {
-		err = badRequest("带 reportId 时 input 缺失")
+		err = badRequest("input 缺失")
 		return
 	}
-	cmd.Input = *req.Input
-	cmd.Options, err = validateChart(cmd.Input, req.Options)
+
+	if req.ReportID != "" {
+		if cmd.ReportID, err = requireReportID(req.ReportID); err != nil {
+			return
+		}
+	}
+	cmd.Chart, err = resolveChart(*req.Input, req.Options)
 	return
 }
 
 // requestDeepSeek 发起流式请求，连不上或上游非 200 都转成 502，上游的错误细节只记到控制台
-func (s *Server) requestDeepSeek(ctx context.Context, prompt string) (*http.Response, error) {
+func (s *Server) requestDeepSeek(ctx context.Context, messages []chatMessage) (*http.Response, error) {
 	payload, err := json.Marshal(chatRequest{
 		Model:     s.deepSeek.Model,
-		Messages:  []chatMessage{{Role: "user", Content: prompt}},
+		Messages:  messages,
 		Stream:    true,
 		MaxTokens: analyzeMaxTokens,
 	})
