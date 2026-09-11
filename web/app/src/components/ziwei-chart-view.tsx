@@ -253,7 +253,7 @@ function PalaceGrid({
   overlay?: Overlay
 }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto" tabIndex={0}>
       <div className="grid min-w-2xl grid-cols-4 grid-rows-4">
         {chart.palaces.map((p) => (
           <PalaceCell
@@ -343,6 +343,7 @@ function LimitView({ chart }: { chart: ZiweiChart }) {
               key={p.branch}
               type="button"
               className={cn(chip, i === decadeIndex ? chipOn : chipOff)}
+              aria-pressed={i === decadeIndex}
               onClick={() => {
                 setDecadeIndex(i)
                 setYear(undefined)
@@ -375,6 +376,7 @@ function LimitView({ chart }: { chart: ZiweiChart }) {
               key={y.year}
               type="button"
               className={cn(chip, y.year === year ? chipOn : chipOff)}
+              aria-pressed={y.year === year}
               onClick={() => setYear(y.year === year ? undefined : y.year)}
             >
               <span className="font-serif text-base">{y.sixtyCycle}</span>

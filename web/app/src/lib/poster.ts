@@ -803,6 +803,7 @@ function drawPalaceCell(p: Painter, palace: ZiweiPalace, x: number, y: number) {
   const { palette } = p
   const inner = x + 8
   const width = GRID_CELL - 16
+  const bottom = y + GRID_ROW - 8
   let cy = y + 8
 
   cy = drawStarRow(p, palace.majorStars, inner, cy, width, 17, SERIF)
@@ -813,14 +814,20 @@ function drawPalaceCell(p: Painter, palace: ZiweiPalace, x: number, y: number) {
   }
   cy = drawStarRow(p, palace.minorStars, inner, cy, width, 12, SANS)
 
-  p.font(9, SANS)
+  // 杂曜按到大限行之间的剩余空间 clamp 行数，正曜辅佐煞占得多时画不下就少画，不压到底部固定内容
   const adjectives = palace.adjectiveStars.map((s) => s.name).join(" ")
-  for (const line of p.wrap(adjectives, width, 3)) {
-    p.text(line, inner, cy + 6, palette.mutedForeground)
-    cy += 13
+  const maxLines = Math.min(
+    3,
+    Math.max(0, Math.floor((bottom - 22 - 6 - cy) / 13))
+  )
+  if (adjectives && maxLines > 0) {
+    p.font(9, SANS)
+    for (const line of p.wrap(adjectives, width, maxLines)) {
+      p.text(line, inner, cy + 6, palette.mutedForeground)
+      cy += 13
+    }
   }
 
-  const bottom = y + GRID_ROW - 8
   p.font(9, SANS)
   p.text(
     `${palace.decade.startAge}-${palace.decade.endAge}  ${palace.changSheng}  ${palace.boShi}`,

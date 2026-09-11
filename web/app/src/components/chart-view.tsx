@@ -137,7 +137,7 @@ function PillarTable({ chart }: { chart: BaziChart }) {
   ]
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto" tabIndex={0}>
       <div className="grid min-w-md grid-cols-[3.5rem_repeat(4,minmax(0,1fr))] gap-x-2">
         <RowLabel>日期</RowLabel>
         {KS.map((k) => (
@@ -198,6 +198,7 @@ function FortuneView({ chart }: { chart: BaziChart }) {
               key={d.index}
               type="button"
               className={cn(chip, i === decade ? chipOn : chipOff)}
+              aria-pressed={i === decade}
               onClick={() => {
                 setDecade(i)
                 setYearIndex(0)
@@ -227,6 +228,7 @@ function FortuneView({ chart }: { chart: BaziChart }) {
               key={y.year}
               type="button"
               className={cn(chip, i === yearIndex ? chipOn : chipOff)}
+              aria-pressed={i === yearIndex}
               onClick={() => setYearIndex(i)}
             >
               <span className="font-serif text-base">{y.sixtyCycle}</span>
