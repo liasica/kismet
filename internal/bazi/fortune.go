@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/6tail/tyme4go/tyme"
+
+	"github.com/liasica/kismet/internal/birth"
 )
 
 // 大运、流年、流月、小运与起运
@@ -165,14 +167,6 @@ func fortuneYearOf(ctx FortuneContext, year, age int, forward bool) (FortuneYear
 	}, nil
 }
 
-// termPointOf 把节气对象转换成 TermPoint
-func termPointOf(term tyme.SolarTerm) TermPoint {
-	return TermPoint{
-		Name: term.GetName(),
-		Time: FormatTime(term.GetJulianDay().GetSolarTime()),
-	}
-}
-
 // BuildFortune 推起运与大运
 func BuildFortune(ctx FortuneContext) (QiYun, []DecadeFortuneStep, error) {
 	forward := isForward(ctx.YearPillar, ctx.Gender)
@@ -209,7 +203,7 @@ func BuildFortune(ctx FortuneContext) (QiYun, []DecadeFortuneStep, error) {
 		MinuteCount: duration.Minute,
 		StartTime:   FormatTime(startTime),
 		StartAge:    startAge,
-		Term:        termPointOf(term),
+		Term:        birth.TermPointOf(term),
 		Precision:   ctx.Precision,
 		Text:        qiYunText(duration, ctx.Precision),
 	}

@@ -2,10 +2,11 @@ package bazi
 
 import (
 	"fmt"
-	"math"
 	"slices"
 
 	"github.com/6tail/tyme4go/tyme"
+
+	"github.com/liasica/kismet/internal/birth"
 )
 
 // 五行强弱评分
@@ -58,11 +59,6 @@ var DefaultWeights = WeightConfig{
 // elementIndex 五行在 tyme.ElementNames 里的序号，木 0 火 1 土 2 金 3 水 4
 func elementIndex(name string) int {
 	return slices.Index(tyme.ElementNames, name)
-}
-
-// round2 保留两位小数，避免浮点尾数进到结果里
-func round2(v float64) float64 {
-	return math.Round(v*100) / 100
 }
 
 // seasonalStates 月令主导的旺相休囚死
@@ -153,7 +149,7 @@ func (s weightedStrategy) Evaluate(ctx ScoringContext) ElementReport {
 		contributions = append(contributions, ElementContribution{
 			Source:  source,
 			Element: element,
-			Weight:  round2(weight),
+			Weight:  birth.Round2(weight),
 			Reason:  reason,
 		})
 	}
@@ -191,16 +187,16 @@ func (s weightedStrategy) Evaluate(ctx ScoringContext) ElementReport {
 
 	total := 0.0
 	for i := range scores {
-		scores[i] = round2(scores[i])
+		scores[i] = birth.Round2(scores[i])
 		total += scores[i]
 	}
-	total = round2(total)
+	total = birth.Round2(total)
 
 	// 同类为与日主同五行的比劫，加生日主的印星
 	supportScore := 0.0
 	self, err := tyme.Element{}.FromName(ctx.DayStemElement)
 	if err == nil {
-		supportScore = round2(
+		supportScore = birth.Round2(
 			scores[elementIndex(self.GetName())] +
 				scores[elementIndex(self.GetReinforced().GetName())],
 		)
@@ -217,7 +213,7 @@ func (s weightedStrategy) Evaluate(ctx ScoringContext) ElementReport {
 		},
 		Total:         total,
 		SupportScore:  supportScore,
-		OpposeScore:   round2(total - supportScore),
+		OpposeScore:   birth.Round2(total - supportScore),
 		Strength:      strengthOf(supportScore, total),
 		SeasonalState: seasonalStates(ctx.MonthBranchElement),
 		Contributions: contributions,

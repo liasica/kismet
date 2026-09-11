@@ -45,12 +45,13 @@ func roundToMinute(t tyme.SolarTime) tyme.SolarTime {
 	return t.Next(-second)
 }
 
-// round2 保留两位小数，避免浮点尾数进到结果里
-func round2(v float64) float64 {
+// Round2 保留两位小数，避免浮点尾数进到结果里
+func Round2(v float64) float64 {
 	return math.Round(v*100) / 100
 }
 
-func termPointOf(term tyme.SolarTerm) TermPoint {
+// TermPointOf 把节气对象转换成 TermPoint
+func TermPointOf(term tyme.SolarTerm) TermPoint {
 	return TermPoint{
 		Name: term.GetName(),
 		Time: FormatTime(term.GetJulianDay().GetSolarTime()),
@@ -114,13 +115,13 @@ func CorrectTime(input Input, useTrueSolarTime, useDaylightSaving bool) (Correct
 			Standard:              FormatTime(standard),
 			Effective:             FormatTime(effective),
 			DaylightSavingMinutes: daylightSavingMinutes,
-			LongitudeMinutes:      round2(longitudeMinutes),
-			EquationOfTimeMinutes: round2(equationOfTimeMinutes),
+			LongitudeMinutes:      Round2(longitudeMinutes),
+			EquationOfTimeMinutes: Round2(equationOfTimeMinutes),
 			MeanSolar:             FormatTime(meanSolar),
 			Lunar:                 effective.GetSolarDay().GetLunarDay().String(),
-			Term:                  termPointOf(effective.GetTerm()),
-			PrevJie:               termPointOf(jie),
-			NextJie:               termPointOf(jie.Next(2)),
+			Term:                  TermPointOf(effective.GetTerm()),
+			PrevJie:               TermPointOf(jie),
+			NextJie:               TermPointOf(jie.Next(2)),
 		},
 	}, nil
 }
