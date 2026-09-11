@@ -14,28 +14,35 @@ import (
 	"github.com/liasica/kismet/internal/report"
 )
 
-// Server 接口层，持有区划数据、DeepSeek 配置、报告存储与前端构建产物
+// Server 接口层，持有区划数据、DeepSeek 配置、报告存储、后台密码与前端构建产物
 type Server struct {
 	store    *region.Store
 	deepSeek DeepSeekConfig
 	reports  *report.Store
 	unlocks  *unlockLimiter
-	web      fs.FS
+	// adminPassword 后台管理的密码，为空即不开放后台
+	adminPassword string
+	// adminLimiter 管理密码的错误计数
+	adminLimiter *unlockLimiter
+	web          fs.FS
 }
 
-// NewServer 构造接口层，web 是前端构建产物的根目录
+// NewServer 构造接口层，web 是前端构建产物的根目录，adminPassword 为空时后台接口返回 503
 func NewServer(
 	store *region.Store,
 	deepSeek DeepSeekConfig,
 	reports *report.Store,
+	adminPassword string,
 	web fs.FS,
 ) *Server {
 	return &Server{
-		store:    store,
-		deepSeek: deepSeek,
-		reports:  reports,
-		unlocks:  newUnlockLimiter(),
-		web:      web,
+		store:         store,
+		deepSeek:      deepSeek,
+		reports:       reports,
+		unlocks:       newUnlockLimiter(),
+		adminPassword: adminPassword,
+		adminLimiter:  newUnlockLimiter(),
+		web:           web,
 	}
 }
 
@@ -57,7 +64,7 @@ func writeError(w http.ResponseWriter, err error) {
 	writeJSON(w, status, map[string]string{"error": message})
 }
 
-// cors 只读的计算接口，不带 cookie 与鉴权，默认放开来源
+// cors 接口不带 cookie，后台鉴权只经 Authorization 头，默认放开来源
 //
 // 收紧用环境变量 ALLOWED_ORIGINS，逗号分隔
 func cors(next http.Handler) http.Handler {
@@ -79,7 +86,7 @@ func cors(next http.Handler) http.Handler {
 			w.Header().Set("Vary", "Origin")
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -105,6 +112,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/reports/{id}/share", s.handleDeleteShare)
 	mux.HandleFunc("GET /api/shares/{hash}", s.handleShared)
 	mux.HandleFunc("POST /api/shares/{hash}/unlock", s.handleUnlock)
+	mux.HandleFunc("GET /api/admin/reports", s.requireAdmin(s.handleAdminReports))
+	mux.HandleFunc("GET /api/admin/reports/{id}", s.requireAdmin(s.handleAdminReport))
 	mux.HandleFunc("GET /api/regions/provinces", s.handleProvinces)
 	mux.HandleFunc("GET /api/regions/search", s.handleSearch)
 	mux.HandleFunc("GET /api/regions/{code}", s.handleRegion)

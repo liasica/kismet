@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/liasica/kismet/internal/httpapi"
@@ -52,10 +53,11 @@ func main() {
 	}
 
 	deepSeek := httpapi.DeepSeekConfigFromEnv()
+	admin := adminPassword()
 	addr := ":" + port()
 	server := &http.Server{
 		Addr:         addr,
-		Handler:      httpapi.NewServer(store, deepSeek, reports, webFS).Handler(),
+		Handler:      httpapi.NewServer(store, deepSeek, reports, admin, webFS).Handler(),
 		ReadTimeout:  readTimeout,
 		WriteTimeout: writeTimeout,
 	}
@@ -66,6 +68,11 @@ func main() {
 		_, _ = fmt.Fprintf(os.Stdout, "命理解读 %s %s\n", deepSeek.BaseURL, deepSeek.Model)
 	} else {
 		_, _ = fmt.Fprintln(os.Stdout, "命理解读 未配置 DEEPSEEK_API_KEY，接口返回 503")
+	}
+	if admin != "" {
+		_, _ = fmt.Fprintf(os.Stdout, "后台管理 http://localhost%s/admin\n", addr)
+	} else {
+		_, _ = fmt.Fprintln(os.Stdout, "后台管理 未配置 ADMIN_PASSWORD，接口返回 503")
 	}
 
 	err = server.ListenAndServe()
@@ -85,6 +92,11 @@ func port() string {
 		return p
 	}
 	return "36579"
+}
+
+// adminPassword 后台管理的密码，取环境变量 ADMIN_PASSWORD，为空即不开放后台
+func adminPassword() string {
+	return strings.TrimSpace(os.Getenv("ADMIN_PASSWORD"))
 }
 
 // dbPath 报告数据文件的路径，取环境变量 DB_PATH

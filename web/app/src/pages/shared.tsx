@@ -1,10 +1,8 @@
 import * as React from "react"
 import { RiArrowRightLine } from "@remixicon/react"
-import Markdown from "react-markdown"
 import { Link, useParams } from "react-router"
-import remarkGfm from "remark-gfm"
 
-import { ChartView } from "@/components/chart-view"
+import { ReportView } from "@/components/report-view"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Field,
@@ -13,11 +11,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
-import { paipan } from "@kismet/core"
-import type { Chart } from "@kismet/core"
 import { errorMessage } from "@/lib/api"
-import { formatSavedAt } from "@/lib/reports"
 import { fetchShared, unlockShared, type SharedReport } from "@/lib/share"
 
 type State =
@@ -94,7 +88,14 @@ export function SharedPage() {
           onUnlock={(report) => setState({ kind: "ready", report })}
         />
       )}
-      {state.kind === "ready" && <SharedReportView report={state.report} />}
+      {state.kind === "ready" && (
+        <ReportView
+          input={state.report.input}
+          options={state.report.options}
+          analysis={state.report.analysis}
+          updatedAt={state.report.updatedAt}
+        />
+      )}
     </section>
   )
 }
@@ -150,44 +151,5 @@ function UnlockForm({ hash, onUnlock }: UnlockFormProps) {
         {error && <span className="text-sm text-destructive">{error}</span>}
       </div>
     </form>
-  )
-}
-
-/** 按保存的输入与选项重新排盘，下面接保存的解读 */
-function SharedReportView({ report }: { report: SharedReport }) {
-  const result = React.useMemo<
-    { chart: Chart; error?: undefined } | { chart?: undefined; error: string }
-  >(() => {
-    try {
-      return { chart: paipan(report.input, report.options) }
-    } catch (e) {
-      return { error: errorMessage(e) }
-    }
-  }, [report])
-
-  if (!result.chart) {
-    return <p className="text-sm text-destructive">{result.error}</p>
-  }
-
-  return (
-    <>
-      <ChartView chart={result.chart} />
-      <Separator />
-      <section className="flex flex-col gap-6">
-        <div className="flex flex-col gap-1">
-          <h3 className="font-heading text-lg">命理解读</h3>
-          <span className="text-xs text-muted-foreground">
-            更新于 {formatSavedAt(Date.parse(report.updatedAt))}
-          </span>
-        </div>
-        {report.analysis ? (
-          <div className="markdown">
-            <Markdown remarkPlugins={[remarkGfm]}>{report.analysis}</Markdown>
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">尚未解读</p>
-        )}
-      </section>
-    </>
   )
 }

@@ -74,6 +74,7 @@ Go 服务只做请求解析与转发，不含排盘逻辑。环境变量：
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容的接口地址 |
 | `DEEPSEEK_MODEL` | `deepseek-flash` | 模型名 |
 | `ALLOWED_ORIGINS` | 空 | 跨域来源，逗号分隔，未设置时放开 |
+| `ADMIN_PASSWORD` | 空 | 后台管理的密码，未设置时后台接口返回 503 |
 
 | 方法与路径 | 说明 |
 | --- | --- |
@@ -86,6 +87,8 @@ Go 服务只做请求解析与转发，不含排盘逻辑。环境变量：
 | `DELETE /api/reports/{id}/share` | 取消分享 |
 | `GET /api/shares/{hash}` | 查看分享，设了密码只返回 `{"locked": true}` |
 | `POST /api/shares/{hash}/unlock` | 收 `{"password"}`，密码正确返回报告内容 |
+| `GET /api/admin/reports?offset=&limit=` | 后台：按创建时间倒序分页列出全部报告，需 `Authorization: Bearer <ADMIN_PASSWORD>` |
+| `GET /api/admin/reports/{id}` | 后台：单份报告的全部内容，鉴权同上 |
 | `GET /api/regions/provinces` | 省级列表 |
 | `GET /api/regions/search?q=&limit=` | 按名称跨级搜索，四级都命中，带完整地名与代码路径 |
 | `GET /api/regions/{code}` | 单条区划，带完整地名与乡镇条数 |

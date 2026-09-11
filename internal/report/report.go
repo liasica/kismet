@@ -10,6 +10,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"slices"
+	"strings"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
@@ -194,6 +196,61 @@ func (s *Store) Shared(hash string) (found Report, err error) {
 		return readReport(tx, string(id), &found)
 	})
 	return
+}
+
+// reportStamp 排序用的报告摘要：只有 id 与创建时间
+type reportStamp struct {
+	id        string
+	createdAt time.Time
+}
+
+// Page 一页报告与总数
+type Page struct {
+	Total   int
+	Reports []Report
+}
+
+// List 按创建时间倒序分页列出全部报告，offset 越过末尾时报告为空、总数照常返回
+func (s *Store) List(offset, limit int) (Page, error) {
+	var page Page
+	err := s.db.View(func(tx *bolt.Tx) error {
+		// 先只解出 id 与创建时间做排序，完整记录只解命中的一页
+		var stamps []reportStamp
+		err := tx.Bucket(bucketReports).ForEach(func(id, raw []byte) error {
+			var head struct {
+				CreatedAt time.Time `json:"createdAt"`
+			}
+			err := json.Unmarshal(raw, &head)
+			if err == nil {
+				stamps = append(stamps, reportStamp{id: string(id), createdAt: head.CreatedAt})
+			}
+			return err
+		})
+		if err != nil {
+			return err
+		}
+
+		slices.SortFunc(stamps, func(a, b reportStamp) int {
+			if c := b.createdAt.Compare(a.createdAt); c != 0 {
+				return c
+			}
+			return strings.Compare(a.id, b.id)
+		})
+
+		page.Total = len(stamps)
+		if offset >= len(stamps) {
+			return nil
+		}
+		for _, stamp := range stamps[offset:min(offset+limit, len(stamps))] {
+			var item Report
+			if err = readReport(tx, stamp.id, &item); err != nil {
+				return err
+			}
+			page.Reports = append(page.Reports, item)
+		}
+		return nil
+	})
+	return page, err
 }
 
 // readReport 在事务内读一条报告

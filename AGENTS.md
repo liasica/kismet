@@ -11,7 +11,7 @@
 | 服务 | Go 1.27，标准库 `net/http` | 静态资源、排盘接口、DeepSeek 转发、报告与分享 |
 | 存储 | bbolt | 单文件键值库，存解读报告与分享设置，路径由 `DB_PATH` 指定 |
 | 构建 | Vite 8 + React 19 + TypeScript 6 | SPA，无 SSR |
-| 路由 | react-router 8 | 声明式 `BrowserRouter`，页面在 `web/app/src/pages/`：`/` 首页卡片、`/bazi` 表单、`/bazi/report` 排盘与解读、`/saved` 收藏、`/s/:hash` 分享页 |
+| 路由 | react-router 8 | 声明式 `BrowserRouter`，页面在 `web/app/src/pages/`：`/` 首页卡片、`/bazi` 表单、`/bazi/report` 排盘与解读、`/saved` 收藏、`/s/:hash` 分享页、`/admin` 后台的报告列表、`/admin/reports/:id` 后台的报告详情 |
 | 样式 | Tailwind CSS v4 | CSS-first，无 `tailwind.config`，主题变量集中在 `web/app/src/index.css` |
 | 组件 | shadcn/ui，style `base-sera` | 配置见 `web/app/components.json` |
 | 组件基座 | `@base-ui/react` | 不是 Radix |
@@ -71,6 +71,7 @@ make fixtures   # 重新生成黄金基准并用 Go 侧比对
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容的接口地址 |
 | `DEEPSEEK_MODEL` | `deepseek-flash` | 模型名 |
 | `ALLOWED_ORIGINS` | 空 | 跨域来源，逗号分隔，未设置时放开 |
+| `ADMIN_PASSWORD` | 空 | 后台管理的密码，限 ASCII 可见字符；未设置时后台接口返回 503，`/admin` 不可用 |
 | `VITE_API_BASE` | 空 | 前端构建时的接口地址，空即同源 |
 
 ## 部署
@@ -79,11 +80,11 @@ make fixtures   # 重新生成黄金基准并用 Go 侧比对
 
 服务器的部署目录放 `compose.yaml` 与 `.env`，两者都由工作流写入。`.env` 里的 `IMAGE_TAG` 是本次部署的 commit sha，回滚就是把它改回旧 sha 再 `docker compose up -d`。容器只监听 `127.0.0.1:36579`，TLS 与对外访问由宿主机的 nginx 反代承担。报告数据在命名卷 `kismet-data`（容器内 `/data`），换镜像不丢。
 
-主机、账号、部署路径、部署私钥与 DeepSeek 密钥都在仓库 secrets：`SSH_HOST`、`SSH_USER`、`DEPLOY_PATH`、`SSH_KEY`、`SSH_KNOWN_HOSTS`、`DEEPSEEK_API_KEY`；`DEEPSEEK_BASE_URL` 与 `DEEPSEEK_MODEL` 是仓库 variables。
+主机、账号、部署路径、部署私钥与 DeepSeek 密钥都在仓库 secrets：`SSH_HOST`、`SSH_USER`、`DEPLOY_PATH`、`SSH_KEY`、`SSH_KNOWN_HOSTS`、`DEEPSEEK_API_KEY`、`ADMIN_PASSWORD`；`DEEPSEEK_BASE_URL` 与 `DEEPSEEK_MODEL` 是仓库 variables。
 
 ## 命理解读
 
-`POST /api/analyze` 收 `{"reportId", "input", "options"}`，服务端按输入排盘、拼出提示词，加上模型名转发给 DeepSeek 的 `chat/completions`，`stream: true`，把上游 SSE 逐行写回；思考模式下流里先出 `reasoning_content` 再出 `content`，服务端把思考过程按行打到控制台，前端只渲染正文，思考阶段显示「思考中」。提示词在 `internal/httpapi/prompt.go`：system 消息放角色与批命规则（按子平法先定旺衰、格局与用神再论事，以命盘为准不重新推算，每条论断给出命盘依据，分清命局与岁运，男命以财论妻、女命以官杀论夫，每节先结论后依据，健康只说方向，不写安慰话与免责声明，只用段落、列表与粗体），user 消息放命主信息、今天的日期（北京时间）、虚岁、所处大运、当前与下一个流年（以立春为界，由 `bazi.FortuneAt` 算）、`bazi.ToText` 带流年的文字命盘与章节清单：成人七节（命局总论、性格与天赋、事业与财运、婚姻与感情、健康、大运与流年、建议）2500 到 3500 字；虚岁 18 以下六节面向父母、不谈婚姻财运事业（命局总论、性格与天赋、健康与体质、学业与培养、大运与流年、给父母的建议）1800 到 2500 字。界面上不出现所用模型的名字，也不提供提示词的查看入口。
+`POST /api/analyze` 收 `{"reportId", "input", "options"}`，服务端按输入排盘、拼出提示词，加上模型名转发给 DeepSeek 的 `chat/completions`，`stream: true`，把上游 SSE 逐行写回；思考模式下流里先出 `reasoning_content` 再出 `content`，服务端把思考过程按行打到控制台，前端只渲染正文，思考阶段显示「思考中」。提示词在 `internal/httpapi/prompt.go`：system 消息放角色与批命规则（按子平法先定旺衰、格局与用神再论事，以命盘为准不重新推算，每条论断给出命盘依据，分清命局与岁运，男命以财论妻、女命以官杀论夫，每节先结论后依据，健康只说方向，不写安慰话与免责声明，只用段落、列表与粗体），user 消息放命主信息、今天的日期（北京时间）、虚岁、所处大运、当前与下一个流年（以立春为界，由 `bazi.FortuneAt` 算）、`bazi.ToText` 带流年的文字命盘与章节清单：成人七节（命局总论、性格与天赋、事业与财运、婚姻与感情、健康、大运与流年、建议）2500 到 3500 字；虚岁 18 以下六节面向父母、不谈婚姻财运事业（命局总论、性格与天赋、健康与体质、学业与培养、大运与流年、给父母的建议）1800 到 2500 字。面向用户的页面不出现所用模型的名字，也不提供提示词的查看入口；模型名只在后台的报告详情里显示。
 
 带 `reportId` 时服务端在转发前把排盘输入与选项存成报告，流结束（含客户端中途断开）后把已生成的正文写回同一份，`reportId` 由前端在提交表单时生成（128 位随机数的 32 位十六进制），持有 id 即可管理这份报告的分享。
 
@@ -93,6 +94,12 @@ make fixtures   # 重新生成黄金基准并用 Go 侧比对
 - 查看：`GET /api/shares/{hash}` 未设密码直接返回 `{"locked": false, "report": {input, options, analysis, createdAt, updatedAt}}`，设了密码只返回 `{"locked": true}`，再 `POST /api/shares/{hash}/unlock` 收 `{"password"}` 换正文；同一分享连续输错 5 次密码冷却 30 秒
 - 分享哈希是 8 字节随机数的 base64url 编码；密码只存 PBKDF2-SHA256 的盐与派生结果，路径不合格式一律按 404 处理
 - 前端 `/s/:hash` 取到 `input` 与 `options` 后在本地重新排盘，接口层不算盘；报告页头部的「分享」对话框分「链接」「图片」两页，图片由 `web/app/src/lib/poster.ts` 用 Canvas 画成长图：命盘、五行与完整解读正文，正文按自带的简易 Markdown 排版（标题、段落、列表、引用、表格、粗体），颜色取当前主题的 CSS 变量，有分享链接时附二维码（`uqr`）；先空跑一遍量出总高度，画布总像素压在 1600 万以内，超长解读自动降低导出倍率
+
+## 后台管理
+
+- 密码是环境变量 `ADMIN_PASSWORD`，未设置时后台接口返回 503；前端 `/admin` 输入后放在 sessionStorage，关掉标签页即失效，每次请求以 `Authorization: Bearer <密码>` 携带，密码限 ASCII 可见字符
+- `GET /api/admin/reports?offset=&limit=` 按创建时间倒序分页列出全部报告，返回 `{"total", "reports": [{id, createdAt, updatedAt, input, model, analysisRunes, share}]}`，不带正文，`limit` 默认 50、最大 200；`GET /api/admin/reports/{id}` 返回单份报告的全部内容，比列表项多 `options` 与 `analysis`。密码缺失或不正确返回 401，连续输错 5 次冷却 30 秒，计数不按客户端区分
+- 前端 `/admin` 以表格列出报告（创建时间、姓名、出生时刻、出生地、解读字数、分享状态），页码在查询参数 `page`，点一行进 `/admin/reports/:id`：先列出报告 id、时间、模型与分享链接，再按保存的输入在本地重新排盘并展示解读正文；分享页与后台详情共用 `web/app/src/components/report-view.tsx`。头部导航不放后台入口，直接访问路径
 
 ## 开发约定
 
