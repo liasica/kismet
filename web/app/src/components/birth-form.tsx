@@ -31,7 +31,7 @@ interface BirthFormProps {
 }
 
 /**
- * 出生信息表单：姓名、性别、出生时间、出生地
+ * 出生信息表单：命主、性别、出生时间、出生地
  *
  * 各命理模块共用这一份，模块特有的选项通过 `children` 接在后面
  */
@@ -57,13 +57,18 @@ export function BirthForm({
     >
       <FieldGroup>
         <Field>
-          <FieldLabel htmlFor="name">姓名</FieldLabel>
-          <Input
-            id="name"
-            value={value.name}
-            placeholder="选填"
-            onChange={(e) => patch({ name: e.target.value })}
-          />
+          <FieldLabel htmlFor="name">命主</FieldLabel>
+          <div className="flex flex-col gap-2">
+            <Input
+              id="name"
+              value={value.name}
+              placeholder="选填"
+              onChange={(e) => patch({ name: e.target.value })}
+            />
+            <FieldDescription className="m-0">
+              只作称呼，不参与排盘
+            </FieldDescription>
+          </div>
         </Field>
 
         <Field>
