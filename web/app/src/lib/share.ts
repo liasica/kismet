@@ -8,6 +8,7 @@
 import type { PaipanInput } from "@kismet/core"
 
 import { API_BASE, readError } from "@/lib/api"
+import type { RemoteReport } from "@/lib/report-api"
 import type { ReportOptions, System } from "@/lib/system"
 
 export interface ShareInfo {
@@ -17,16 +18,8 @@ export interface ShareInfo {
   createdAt: string
 }
 
-/** 分享出去的报告内容 */
-export interface SharedReport {
-  system: System
-  input: PaipanInput
-  options: ReportOptions
-  /** 解读正文 Markdown，尚未解读时为空 */
-  analysis: string
-  createdAt: string
-  updatedAt: string
-}
+/** 分享出去的报告内容，与按 id 取回的报告同一份结构 */
+export type SharedReport = RemoteReport
 
 /** 查看分享的结果：设了密码且尚未验证时只有 `locked` */
 export interface SharedView {

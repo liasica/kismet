@@ -1,19 +1,19 @@
 import * as React from "react"
 import {
+  RiArrowDownSLine,
   RiArrowLeftSLine,
   RiArrowRightSLine,
-  RiFileList2Line,
   RiForbid2Line,
   RiRefreshLine,
   RiShieldCheckLine,
 } from "@remixicon/react"
-import { Link, useSearchParams } from "react-router"
+import { Link } from "react-router"
 
-import { AdminGate, AdminHeading } from "@/components/admin-gate"
 import { Badge } from "@/components/ui/badge"
-import { Button, buttonVariants } from "@/components/ui/button"
-import { Field, FieldLabel } from "@/components/ui/field"
+import { Button } from "@/components/ui/button"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import {
   Table,
   TableBody,
@@ -29,6 +29,7 @@ import {
 } from "@/lib/admin"
 import { errorMessage } from "@/lib/api"
 import { formatSavedAt } from "@/lib/reports"
+import { systemMetaOf } from "@/lib/system"
 import {
   browserLabel,
   fetchUsage,
@@ -44,27 +45,22 @@ import {
   type AdminUsagePage,
   type QuotaLimits,
   type Tokens,
+  type UsageReport,
   type UsageRule,
 } from "@/lib/usage"
 
 /**
- * 后台的用量页：按浏览器指纹与来源 IP 列出解读次数，可清零、拉黑或加白名单
+ * 后台的用量一节：额度设置，以及按浏览器指纹与来源 IP 列出的解读次数
  *
- * 页码放在查询参数里，换页以页码为 key 重建表格
+ * 每一行可以展开这个主体名下的报告，据此认出它是谁；改处置就地换掉那一行，不重拉整页
  */
-export function AdminUsagePage() {
-  const [params, setParams] = useSearchParams()
-  const page = Math.max(1, Math.floor(Number(params.get("page")) || 1))
+export function UsageSection({ page, onGoto }: UsageSectionProps) {
+  return <UsageTable key={page} page={page} onGoto={onGoto} />
+}
 
-  return (
-    <AdminGate>
-      <UsageTable
-        key={page}
-        page={page}
-        onGoto={(next) => setParams(next > 1 ? { page: String(next) } : {})}
-      />
-    </AdminGate>
-  )
+interface UsageSectionProps {
+  page: number
+  onGoto: (page: number) => void
 }
 
 type State =
@@ -72,12 +68,7 @@ type State =
   | { kind: "ready"; page: AdminUsagePage }
   | { kind: "failed"; message: string }
 
-interface UsageTableProps {
-  page: number
-  onGoto: (page: number) => void
-}
-
-function UsageTable({ page, onGoto }: UsageTableProps) {
+function UsageTable({ page, onGoto }: UsageSectionProps) {
   const password = useAdminPassword()
   const [state, setState] = React.useState<State>({ kind: "loading" })
   const [busy, setBusy] = React.useState<string>()
@@ -133,16 +124,15 @@ function UsageTable({ page, onGoto }: UsageTableProps) {
       : Math.max(1, Math.ceil(total / USAGE_PAGE_SIZE))
 
   return (
-    <section className="flex flex-col gap-8">
-      <AdminHeading>
-        <Link
-          to="/admin"
-          className={buttonVariants({ variant: "outline", size: "sm" })}
-        >
-          <RiFileList2Line data-icon="inline-start" />
-          报告列表
-        </Link>
-      </AdminHeading>
+    <section className="flex flex-col gap-6">
+      <div className="flex items-baseline justify-between gap-4">
+        <h2 className="font-heading text-lg">免费次数</h2>
+        {total !== undefined && (
+          <span className="text-sm text-muted-foreground">
+            共 {total} 个主体
+          </span>
+        )}
+      </div>
 
       {state.kind === "ready" && (
         <QuotaEditor
@@ -177,6 +167,7 @@ function UsageTable({ page, onGoto }: UsageTableProps) {
           <TableHeader>
             <TableRow>
               <TableHead>主体</TableHead>
+              <TableHead>报告</TableHead>
               <TableHead>用量</TableHead>
               <TableHead>tokens</TableHead>
               <TableHead>最近一次</TableHead>
@@ -250,7 +241,8 @@ function QuotaEditor({
   const dirty =
     draft.client !== String(limits.client) ||
     draft.ip !== String(limits.ip) ||
-    draft.windowHours !== String(limits.windowHours)
+    draft.windowHours !== String(limits.windowHours) ||
+    draft.whitelistOnly !== limits.whitelistOnly
 
   const save = async () => {
     setBusy(true)
@@ -260,6 +252,7 @@ function QuotaEditor({
         client: Number(draft.client),
         ip: Number(draft.ip),
         windowHours: Number(draft.windowHours),
+        whitelistOnly: draft.whitelistOnly,
       })
       setDraft(draftOf(saved))
       onSaved(saved)
@@ -295,6 +288,24 @@ function QuotaEditor({
           value={draft.windowHours}
           onChange={(windowHours) => setDraft({ ...draft, windowHours })}
         />
+        <Field orientation="horizontal" className="w-auto">
+          <Switch
+            id="quota-whitelist"
+            checked={draft.whitelistOnly}
+            onCheckedChange={(whitelistOnly) =>
+              setDraft({ ...draft, whitelistOnly })
+            }
+          />
+          <FieldLabel
+            htmlFor="quota-whitelist"
+            className="flex-col items-start gap-1 font-normal"
+          >
+            仅白名单可解读
+            <FieldDescription className="m-0">
+              开着时只有设为不限次的主体能解读，其余一律拒绝
+            </FieldDescription>
+          </FieldLabel>
+        </Field>
         <Button size="sm" disabled={!dirty || busy} onClick={() => void save()}>
           保存
         </Button>
@@ -312,6 +323,7 @@ function draftOf(limits: QuotaLimits) {
     client: String(limits.client),
     ip: String(limits.ip),
     windowHours: String(limits.windowHours),
+    whitelistOnly: limits.whitelistOnly,
   }
 }
 
@@ -367,13 +379,16 @@ interface UsageRowProps {
 }
 
 function UsageRow({ item, limits, busy, onReset, onRule }: UsageRowProps) {
+  const [open, setOpen] = React.useState(false)
   const limit = item.kind === "ip" ? limits.ip : limits.client
   const blocked = item.rule === "block"
   const allowed = item.rule === "allow"
   const exceeded = !allowed && limit > 0 && item.recent >= limit
+  const reports = item.reports ?? []
 
   return (
-    <TableRow>
+    <>
+      <TableRow>
       <TableCell>
         <span className="flex flex-col gap-1">
           <span className="flex items-baseline gap-3">
@@ -391,6 +406,21 @@ function UsageRow({ item, limits, busy, onReset, onRule }: UsageRowProps) {
             </span>
           )}
         </span>
+      </TableCell>
+      <TableCell>
+        {item.reportTotal > 0 ? (
+          <Button
+            variant="outline"
+            size="sm"
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+          >
+            {item.reportTotal} 份
+            <RiArrowDownSLine className={open ? "rotate-180" : undefined} />
+          </Button>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
       </TableCell>
       <TableCell className="tabular-nums">
         <span className="flex flex-col gap-1">
@@ -451,6 +481,54 @@ function UsageRow({ item, limits, busy, onReset, onRule }: UsageRowProps) {
           </Button>
         </span>
       </TableCell>
-    </TableRow>
+      </TableRow>
+      {open && (
+        <TableRow>
+          <TableCell colSpan={8} className="bg-muted/40">
+            <UsageReports item={item} reports={reports} />
+          </TableCell>
+        </TableRow>
+      )}
+    </>
+  )
+}
+
+/** 展开后的报告清单，点姓名进报告详情 */
+function UsageReports({
+  item,
+  reports,
+}: {
+  item: AdminUsage
+  reports: UsageReport[]
+}) {
+  const rest = item.reportTotal - reports.length
+
+  return (
+    <span className="flex flex-col gap-2 py-1">
+      {reports.map((report) => (
+        <span key={report.id} className="flex flex-wrap items-baseline gap-3">
+          <span className="text-muted-foreground tabular-nums">
+            {formatSavedAt(Date.parse(report.createdAt))}
+          </span>
+          <Link
+            to={`/admin/reports/${report.id}`}
+            className="font-heading hover:underline"
+          >
+            {report.name || "未具名"}
+          </Link>
+          <Badge variant="secondary">{systemMetaOf(report.system).title}</Badge>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {report.analysisRunes > 0
+              ? `${report.analysisRunes} 字`
+              : "未解读"}
+          </span>
+        </span>
+      ))}
+      {rest > 0 && (
+        <span className="text-xs text-muted-foreground">
+          另有 {rest} 份，见下方报告列表
+        </span>
+      )}
+    </span>
   )
 }

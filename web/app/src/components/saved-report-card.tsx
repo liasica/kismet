@@ -11,7 +11,7 @@ import { ELEMENT_TEXT } from "@/lib/bazi"
 import { locationNameOf, toPaipanInput } from "@/lib/birth-info"
 import { trackGlow } from "@/lib/glow"
 import { excerptOf, formatSavedAt, type SavedReport } from "@/lib/reports"
-import { SYSTEMS } from "@/lib/system"
+import { reportPathOf, SYSTEMS } from "@/lib/system"
 
 const PILLARS: ReadonlyArray<[PillarKind, string]> = [
   ["year", "年"],
@@ -140,7 +140,7 @@ export function SavedReportCard({
       <div className="relative m-px flex flex-1 flex-col gap-5 overflow-hidden bg-card p-6">
         <span className="module-card-light" aria-hidden />
         <Link
-          to={SYSTEMS[report.system].reportPath}
+          to={reportPathOf(report.system, report.id)}
           className="absolute inset-0 z-10 outline-none"
           aria-label={`打开 ${name} 的报告`}
           onClick={() => onOpen(report)}

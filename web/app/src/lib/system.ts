@@ -31,6 +31,11 @@ export const SYSTEMS: Record<System, SystemMeta> = {
   },
 }
 
+/** 某份报告的报告页地址，如 `/bazi/report/<id>` */
+export function reportPathOf(system: System, id: string): string {
+  return `${SYSTEMS[system].reportPath}/${id}`
+}
+
 export function isSystem(value: unknown): value is System {
   return value === "bazi" || value === "ziwei"
 }

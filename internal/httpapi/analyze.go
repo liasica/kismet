@@ -46,20 +46,23 @@ var analyzeClient = &http.Client{
 
 // DeepSeekConfig DeepSeek 接入配置
 type DeepSeekConfig struct {
-	APIKey  string
+	// Keys 密钥，可以配多把，解读请求轮流取用
+	Keys    []string
 	BaseURL string
 	Model   string
 }
 
 // Enabled 配了密钥才开放解读接口
 func (c DeepSeekConfig) Enabled() bool {
-	return c.APIKey != ""
+	return len(c.Keys) > 0
 }
 
 // DeepSeekConfigFromEnv 读环境变量 DEEPSEEK_API_KEY、DEEPSEEK_BASE_URL、DEEPSEEK_MODEL
+//
+// DEEPSEEK_API_KEY 用逗号分隔可以填多把密钥
 func DeepSeekConfigFromEnv() DeepSeekConfig {
 	config := DeepSeekConfig{
-		APIKey:  strings.TrimSpace(os.Getenv("DEEPSEEK_API_KEY")),
+		Keys:    splitKeys(os.Getenv("DEEPSEEK_API_KEY")),
 		BaseURL: strings.TrimRight(strings.TrimSpace(os.Getenv("DEEPSEEK_BASE_URL")), "/"),
 		Model:   strings.TrimSpace(os.Getenv("DEEPSEEK_MODEL")),
 	}
@@ -195,8 +198,11 @@ func (s *Server) serveAnalysis(w http.ResponseWriter, r *http.Request, parse ana
 
 	client := s.clientOf(r)
 	keys := quotaKeysOf(client)
-	if err = s.quota.Check(keys...); err != nil {
-		writeError(w, quotaError(err))
+
+	// 带了有效的通行码就跳过免费次数的两层额度，由码自己的次数池承担
+	code := accessCodeOf(r)
+	if err = s.checkAccess(code, keys); err != nil {
+		writeError(w, err)
 		return
 	}
 
@@ -214,19 +220,29 @@ func (s *Server) serveAnalysis(w http.ResponseWriter, r *http.Request, parse ana
 		}
 	}
 
-	var resp *http.Response
-	if resp, err = s.requestDeepSeek(r.Context(), plan.messages); err != nil {
+	var (
+		resp    *http.Response
+		release func()
+	)
+	if resp, release, err = s.requestDeepSeek(r.Context(), plan.messages); err != nil {
 		writeError(w, err)
 		return
 	}
+	defer release()
 	defer func() { _ = resp.Body.Close() }()
 
 	// 上游已经开始生成就算消耗一次，中途断开不退
 	s.recordUsage(client, keys)
+	s.consumePass(code, client)
 
 	content, tokens := relayStream(w, resp.Body)
 	if err = s.quota.AddTokens(keys, tokens); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "累计模型用量失败 %v\n", err)
+	}
+	if code != "" {
+		if err = s.quota.AddPassTokens(code, tokens); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "累计通行码用量失败 %v\n", err)
+		}
 	}
 
 	if plan.reportID == "" || content == "" {
@@ -299,7 +315,12 @@ func (s *Server) parseZiweiAnalysis(r *http.Request, now time.Time) (plan analys
 }
 
 // requestDeepSeek 发起流式请求，连不上或上游非 200 都转成 502，上游的错误细节只记到控制台
-func (s *Server) requestDeepSeek(ctx context.Context, messages []chatMessage) (*http.Response, error) {
+//
+// 密钥由 keyring 分配，返回的 release 要等流读完才调用，否则同一把密钥会被下一个请求抢去
+func (s *Server) requestDeepSeek(
+	ctx context.Context,
+	messages []chatMessage,
+) (resp *http.Response, release func(), err error) {
 	payload, err := json.Marshal(chatRequest{
 		Model:     s.deepSeek.Model,
 		Messages:  messages,
@@ -307,38 +328,48 @@ func (s *Server) requestDeepSeek(ctx context.Context, messages []chatMessage) (*
 		MaxTokens: analyzeMaxTokens,
 	})
 	if err != nil {
-		return nil, err
+		release = func() {}
+		return
 	}
 
-	req, err := http.NewRequestWithContext(
+	var req *http.Request
+	if req, err = http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
 		s.deepSeek.BaseURL+"/chat/completions",
 		bytes.NewReader(payload),
-	)
-	if err != nil {
-		return nil, err
+	); err != nil {
+		release = func() {}
+		return
 	}
-	req.Header.Set("Authorization", "Bearer "+s.deepSeek.APIKey)
+
+	key, slot, release := s.deepSeekKeys.acquire()
+	req.Header.Set("Authorization", "Bearer "+key)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
 
-	resp, err := analyzeClient.Do(req)
-	if err != nil {
+	if resp, err = analyzeClient.Do(req); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "连接解读上游失败 %v\n", err)
-		return nil, apiError{status: http.StatusBadGateway, message: "连接解读服务失败"}
+		release()
+		release = func() {}
+		resp, err = nil, apiError{status: http.StatusBadGateway, message: "连接解读服务失败"}
+		return
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		message := readUpstreamError(resp.Body)
+		status := resp.StatusCode
 		_ = resp.Body.Close()
-		_, _ = fmt.Fprintf(os.Stderr, "解读上游返回 %d %s\n", resp.StatusCode, message)
-		return nil, apiError{
+		release()
+		release = func() {}
+		_, _ = fmt.Fprintf(os.Stderr, "解读上游返回 %d 密钥 %d %s\n", status, slot+1, message)
+		resp, err = nil, apiError{
 			status:  http.StatusBadGateway,
-			message: fmt.Sprintf("解读服务返回 %d", resp.StatusCode),
+			message: fmt.Sprintf("解读服务返回 %d", status),
 		}
+		return
 	}
-	return resp, nil
+	return
 }
 
 // readUpstreamError 取上游错误信息，解析不出来就原样截取正文

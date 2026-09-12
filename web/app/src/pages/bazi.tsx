@@ -13,7 +13,7 @@ import {
   type BirthInfo,
 } from "@/lib/birth-info"
 import { newReportId } from "@/lib/reports"
-import { SYSTEMS } from "@/lib/system"
+import { reportPathOf, SYSTEMS } from "@/lib/system"
 
 export function BaziPage() {
   const [session, setSession] = useBaziSession()
@@ -47,13 +47,9 @@ export function BaziPage() {
       return
     }
     setError(undefined)
-    setSession({
-      birth,
-      options,
-      submittedAt: Date.now(),
-      reportId: newReportId(),
-    })
-    void navigate("/bazi/report")
+    const reportId = newReportId()
+    setSession({ birth, options, submittedAt: Date.now(), reportId })
+    void navigate(reportPathOf("bazi", reportId))
   }
 
   return (

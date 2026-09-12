@@ -88,7 +88,8 @@ export function ReportView({
           </span>
         </div>
         {analysis ? (
-          <div className="markdown">
+          // 后台整页宽，正文限一个行长，命盘照旧铺满
+          <div className="markdown max-w-4xl">
             <Markdown remarkPlugins={[remarkGfm]}>{analysis}</Markdown>
           </div>
         ) : (

@@ -61,8 +61,8 @@ type unlockRequest struct {
 	Password string `json:"password"`
 }
 
-// sharedReport 分享出去的报告内容，选项按体系原样透传
-type sharedReport struct {
+// reportContent 报告的内容，选项按体系原样透传；按 id 取报告与查看分享都用它
+type reportContent struct {
 	System    string          `json:"system"`
 	Input     birth.Input     `json:"input"`
 	Options   json.RawMessage `json:"options"`
@@ -73,21 +73,25 @@ type sharedReport struct {
 
 // sharedResponse 查看分享的响应：有密码且尚未验证时只给 locked
 type sharedResponse struct {
-	Locked bool          `json:"locked"`
-	Report *sharedReport `json:"report,omitempty"`
+	Locked bool           `json:"locked"`
+	Report *reportContent `json:"report,omitempty"`
+}
+
+// contentOf 取报告的对外内容
+func contentOf(item report.Report) reportContent {
+	return reportContent{
+		System:    item.System,
+		Input:     item.Input,
+		Options:   item.Options,
+		Analysis:  item.Analysis,
+		CreatedAt: item.CreatedAt,
+		UpdatedAt: item.UpdatedAt,
+	}
 }
 
 func sharedOf(item report.Report) sharedResponse {
-	return sharedResponse{
-		Report: &sharedReport{
-			System:    item.System,
-			Input:     item.Input,
-			Options:   item.Options,
-			Analysis:  item.Analysis,
-			CreatedAt: item.CreatedAt,
-			UpdatedAt: item.UpdatedAt,
-		},
-	}
+	content := contentOf(item)
+	return sharedResponse{Report: &content}
 }
 
 // requireReportID 校验路径里的报告 id

@@ -253,6 +253,22 @@ type Page struct {
 	Reports []Report
 }
 
+// Each 遍历全部报告，遍历顺序即存储顺序
+func (s *Store) Each(visit func(item Report) error) error {
+	return s.db.View(func(tx *bolt.Tx) error {
+		return tx.Bucket(bucketReports).ForEach(func(_, raw []byte) error {
+			var item Report
+			if err := json.Unmarshal(raw, &item); err != nil {
+				return err
+			}
+			if item.System == "" {
+				item.System = SystemBazi
+			}
+			return visit(item)
+		})
+	})
+}
+
 // List 按创建时间倒序分页列出全部报告，offset 越过末尾时报告为空、总数照常返回
 func (s *Store) List(offset, limit int) (Page, error) {
 	var page Page

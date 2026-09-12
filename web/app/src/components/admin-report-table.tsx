@@ -1,15 +1,9 @@
 import * as React from "react"
-import {
-  RiArrowLeftSLine,
-  RiArrowRightSLine,
-  RiLogoutBoxRLine,
-  RiPulseLine,
-} from "@remixicon/react"
-import { Link, useNavigate, useSearchParams } from "react-router"
+import { RiArrowLeftSLine, RiArrowRightSLine } from "@remixicon/react"
+import { Link, useNavigate } from "react-router"
 
-import { AdminGate, AdminHeading } from "@/components/admin-gate"
 import { Badge } from "@/components/ui/badge"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
@@ -34,23 +28,17 @@ import { systemMetaOf } from "@/lib/system"
 import { browserLabel } from "@/lib/usage"
 
 /**
- * 后台首页：服务端保存的全部报告，按创建时间倒序分页，点一行进详情
+ * 后台的报告一节：服务端保存的全部报告，按创建时间倒序分页，点一行进详情
  *
  * 页码放在查询参数里，从详情返回时仍在原来那一页；换页以页码为 key 重建表格
  */
-export function AdminReportsPage() {
-  const [params, setParams] = useSearchParams()
-  const page = Math.max(1, Math.floor(Number(params.get("page")) || 1))
+export function ReportSection({ page, onGoto }: ReportSectionProps) {
+  return <ReportTable key={page} page={page} onGoto={onGoto} />
+}
 
-  return (
-    <AdminGate>
-      <ReportTable
-        key={page}
-        page={page}
-        onGoto={(next) => setParams(next > 1 ? { page: String(next) } : {})}
-      />
-    </AdminGate>
-  )
+interface ReportSectionProps {
+  page: number
+  onGoto: (page: number) => void
 }
 
 type State =
@@ -68,12 +56,7 @@ function shareLabel(share: ShareInfo | undefined): string {
   return share.locked ? "已分享，有密码" : "已分享"
 }
 
-interface ReportTableProps {
-  page: number
-  onGoto: (page: number) => void
-}
-
-function ReportTable({ page, onGoto }: ReportTableProps) {
+function ReportTable({ page, onGoto }: ReportSectionProps) {
   const password = useAdminPassword()
   const navigate = useNavigate()
   const [state, setState] = React.useState<State>({ kind: "loading" })
@@ -99,29 +82,13 @@ function ReportTable({ page, onGoto }: ReportTableProps) {
     total === undefined ? undefined : Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
-    <section className="flex flex-col gap-8">
-      <AdminHeading>
-        <div className="flex items-center gap-4">
-          {total !== undefined && (
-            <span className="text-sm text-muted-foreground">共 {total} 份</span>
-          )}
-          <Link
-            to="/admin/usage"
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-          >
-            <RiPulseLine data-icon="inline-start" />
-            用量
-          </Link>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setAdminPassword("")}
-          >
-            <RiLogoutBoxRLine data-icon="inline-start" />
-            退出
-          </Button>
-        </div>
-      </AdminHeading>
+    <section className="flex flex-col gap-6">
+      <div className="flex items-baseline justify-between gap-4">
+        <h2 className="font-heading text-lg">报告</h2>
+        {total !== undefined && (
+          <span className="text-sm text-muted-foreground">共 {total} 份</span>
+        )}
+      </div>
 
       {state.kind === "loading" && (
         <p className="text-sm text-muted-foreground">加载中</p>

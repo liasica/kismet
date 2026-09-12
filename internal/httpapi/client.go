@@ -28,6 +28,8 @@ const (
 	realIPHeaderOff = "none"
 	// fingerprintHeader 浏览器指纹头，由前端带上
 	fingerprintHeader = "X-Client-Id"
+	// accessCodeHeader 通行码头，持有码的用户由前端带上
+	accessCodeHeader = "X-Access-Code"
 	// userAgentMaxBytes UA 存下来的长度上限
 	userAgentMaxBytes = 512
 )
@@ -115,6 +117,11 @@ func fingerprintOf(r *http.Request) string {
 	return value
 }
 
+// accessCodeOf 取请求头里的通行码，没带或全是分隔符时为空
+func accessCodeOf(r *http.Request) string {
+	return quota.NormalizePass(r.Header.Get(accessCodeHeader))
+}
+
 // quotaKeysOf 客户端对应的配额主体：指纹在前，命中就先按它报错
 func quotaKeysOf(client report.Client) []quota.Key {
 	return []quota.Key{
@@ -135,14 +142,74 @@ func (s *Server) recordUsage(client report.Client, keys []quota.Key) {
 	}
 }
 
+// consumePass 扣一次通行码并记下用码的客户端，写失败只记到控制台，不影响这次解读
+func (s *Server) consumePass(code string, client report.Client) {
+	if code == "" {
+		return
+	}
+
+	entry := quota.Entry{
+		Key:       quota.ClientKey(client.Fingerprint, client.IP),
+		UserAgent: client.UserAgent,
+		IP:        client.IP,
+	}
+	if err := s.quota.ConsumePass(code, entry); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "扣通行码次数失败 %v\n", err)
+	}
+}
+
+// checkAccess 这次解读放不放行
+//
+// 带了通行码就只看拉黑与码本身，额度交给码的次数池；没带则走免费次数的两层额度
+func (s *Server) checkAccess(code string, keys []quota.Key) error {
+	if code == "" {
+		return quotaError(s.quota.Check(keys...))
+	}
+
+	// 拉黑是后台明确的拒绝，通行码也绕不过
+	if err := s.quota.CheckBlocked(keys...); err != nil {
+		return quotaError(err)
+	}
+
+	_, err := s.quota.CheckPass(code)
+	return passError(err)
+}
+
+// passError 把通行码错误转成带状态码的接口错误
+//
+// 码不能用一律带上 pass_invalid，前端据此清掉本地存的码并提示重填
+func passError(err error) error {
+	switch {
+	case errors.Is(err, quota.ErrPassNotFound),
+		errors.Is(err, quota.ErrPassDisabled),
+		errors.Is(err, quota.ErrPassUsedUp):
+		return apiError{
+			status:  http.StatusForbidden,
+			message: err.Error(),
+			code:    codePassInvalid,
+		}
+	}
+	return err
+}
+
 // quotaError 把配额错误转成带状态码的接口错误
 func quotaError(err error) error {
 	var exceeded quota.LimitError
 	switch {
 	case errors.Is(err, quota.ErrBlocked):
 		return apiError{status: http.StatusForbidden, message: "这个客户端已被限制使用解读"}
+	case errors.Is(err, quota.ErrNotWhitelisted):
+		return apiError{
+			status:  http.StatusForbidden,
+			message: "解读当前只对白名单开放",
+			code:    codeQuotaExhausted,
+		}
 	case errors.As(err, &exceeded):
-		return apiError{status: http.StatusTooManyRequests, message: exceeded.Error()}
+		return apiError{
+			status:  http.StatusTooManyRequests,
+			message: exceeded.Error(),
+			code:    codeQuotaExhausted,
+		}
 	}
 	return err
 }

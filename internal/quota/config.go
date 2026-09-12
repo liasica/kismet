@@ -28,6 +28,8 @@ type Config struct {
 	// IPLimit 单个 IP 在窗口内的次数，0 即不限
 	IPLimit int           `json:"ipLimit"`
 	Window  time.Duration `json:"window"`
+	// WhitelistOnly 开启后只有白名单主体能解读，其余一律拒绝
+	WhitelistOnly bool `json:"whitelistOnly"`
 }
 
 // Validate 校验额度与窗口
@@ -46,6 +48,9 @@ func (c Config) Validate() error {
 
 // Describe 启动时打印的一行说明
 func (c Config) Describe() string {
+	if c.WhitelistOnly {
+		return "只对白名单开放"
+	}
 	if c.ClientLimit <= 0 && c.IPLimit <= 0 {
 		return "不限次"
 	}

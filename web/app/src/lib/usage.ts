@@ -3,6 +3,7 @@
  */
 
 import { adminJSON } from "@/lib/admin"
+import type { System } from "@/lib/system"
 
 /** 配额主体的类型：浏览器指纹或来源 IP */
 export type UsageKind = "client" | "ip"
@@ -38,6 +39,20 @@ export interface AdminUsage {
   tokens: Tokens
   rule?: UsageRule
   note?: string
+  /** 这个主体名下最近的几份报告 */
+  reports?: UsageReport[]
+  /** 这个主体名下的报告总数 */
+  reportTotal: number
+}
+
+/** 主体名下的一份报告 */
+export interface UsageReport {
+  id: string
+  system: System
+  name?: string
+  createdAt: string
+  /** 解读正文的字符数，0 即尚未解读 */
+  analysisRunes: number
 }
 
 /** 生效中的额度，0 即该层不限次；也是改额度的请求体 */
@@ -45,6 +60,8 @@ export interface QuotaLimits {
   client: number
   ip: number
   windowHours: number
+  /** 开着时只有设为不限次的主体能解读 */
+  whitelistOnly: boolean
 }
 
 /** 改额度与窗口，写进服务端的数据文件并立刻生效 */

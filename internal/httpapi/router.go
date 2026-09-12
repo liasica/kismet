@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -20,7 +21,9 @@ import (
 type Server struct {
 	store    *region.Store
 	deepSeek DeepSeekConfig
-	reports  *report.Store
+	// deepSeekKeys 密钥分配器，并发的解读各占一把
+	deepSeekKeys *keyring
+	reports      *report.Store
 	// knowledge 紫微解读的讲义切片
 	knowledge *knowledge.Library
 	// quota 免费解读次数的配额
@@ -48,6 +51,7 @@ func NewServer(
 	return &Server{
 		store:         store,
 		deepSeek:      deepSeek,
+		deepSeekKeys:  newKeyring(deepSeek.Keys),
 		reports:       reports,
 		knowledge:     lib,
 		quota:         usage,
@@ -74,7 +78,13 @@ func writeError(w http.ResponseWriter, err error) {
 	if status == http.StatusInternalServerError {
 		_, _ = fmt.Fprintf(os.Stderr, "未预期的错误 %v\n", err)
 	}
-	writeJSON(w, status, map[string]string{"error": message})
+
+	body := map[string]string{"error": message}
+	var detailed apiError
+	if errors.As(err, &detailed) && detailed.code != "" {
+		body["code"] = detailed.code
+	}
+	writeJSON(w, status, body)
 }
 
 // cors 接口不带 cookie，后台鉴权只经 Authorization 头，默认放开来源
@@ -99,7 +109,10 @@ func cors(next http.Handler) http.Handler {
 			w.Header().Set("Vary", "Origin")
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, "+fingerprintHeader)
+		w.Header().Set(
+			"Access-Control-Allow-Headers",
+			"Content-Type, Authorization, "+fingerprintHeader+", "+accessCodeHeader,
+		)
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -122,17 +135,22 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/bazi/analyze", s.handleBaziAnalyze)
 	mux.HandleFunc("POST /api/ziwei/paipan", s.handleZiweiPaipan)
 	mux.HandleFunc("POST /api/ziwei/analyze", s.handleZiweiAnalyze)
+	mux.HandleFunc("GET /api/reports/{id}", s.handleGetReport)
 	mux.HandleFunc("GET /api/reports/{id}/share", s.handleGetShare)
 	mux.HandleFunc("POST /api/reports/{id}/share", s.handleCreateShare)
 	mux.HandleFunc("DELETE /api/reports/{id}/share", s.handleDeleteShare)
 	mux.HandleFunc("GET /api/shares/{hash}", s.handleShared)
 	mux.HandleFunc("POST /api/shares/{hash}/unlock", s.handleUnlock)
+	mux.HandleFunc("GET /api/passes/{code}", s.handlePass)
 	mux.HandleFunc("GET /api/admin/reports", s.requireAdmin(s.handleAdminReports))
 	mux.HandleFunc("GET /api/admin/reports/{id}", s.requireAdmin(s.handleAdminReport))
 	mux.HandleFunc("GET /api/admin/usage", s.requireAdmin(s.handleAdminUsage))
 	mux.HandleFunc("POST /api/admin/quota", s.requireAdmin(s.handleAdminQuota))
 	mux.HandleFunc("POST /api/admin/usage/reset", s.requireAdmin(s.handleAdminUsageReset))
 	mux.HandleFunc("POST /api/admin/usage/rule", s.requireAdmin(s.handleAdminUsageRule))
+	mux.HandleFunc("GET /api/admin/passes", s.requireAdmin(s.handleAdminPasses))
+	mux.HandleFunc("POST /api/admin/passes", s.requireAdmin(s.handleAdminPassCreate))
+	mux.HandleFunc("POST /api/admin/passes/disable", s.requireAdmin(s.handleAdminPassDisable))
 	mux.HandleFunc("GET /api/regions/provinces", s.handleProvinces)
 	mux.HandleFunc("GET /api/regions/search", s.handleSearch)
 	mux.HandleFunc("GET /api/regions/{code}", s.handleRegion)

@@ -104,7 +104,13 @@ func main() {
 	_, _ = fmt.Fprintf(os.Stdout, "遇见 http://localhost%s\n", addr)
 	_, _ = fmt.Fprintf(os.Stdout, "数据文件 %s\n", dbPath())
 	if deepSeek.Enabled() {
-		_, _ = fmt.Fprintf(os.Stdout, "命理解读 %s %s\n", deepSeek.BaseURL, deepSeek.Model)
+		_, _ = fmt.Fprintf(
+			os.Stdout,
+			"命理解读 %s %s，密钥 %d 把\n",
+			deepSeek.BaseURL,
+			deepSeek.Model,
+			len(deepSeek.Keys),
+		)
 	} else {
 		_, _ = fmt.Fprintln(os.Stdout, "命理解读 未配置 DEEPSEEK_API_KEY，接口返回 503")
 	}

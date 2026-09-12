@@ -4,9 +4,20 @@
 
 import type { PaipanInput } from "@kismet/core"
 
-import { API_BASE, readError } from "@/lib/api"
+import { API_BASE, readErrorDetail } from "@/lib/api"
 import { clientId } from "@/lib/client-id"
+import { currentPass, PASS_INVALID, setPass } from "@/lib/pass"
 import type { ReportOptions, System } from "@/lib/system"
+
+/** 解读被服务端挡下，`code` 是机器可读的缘由，界面据此决定提示什么 */
+export class AnalysisError extends Error {
+  readonly code?: string
+
+  constructor(message: string, code?: string) {
+    super(message)
+    this.code = code
+  }
+}
 
 /** 解读请求：体系、报告 id、排盘输入与选项，服务端据此排盘并存成报告，解读结束后正文写回同一份 */
 export interface AnalysisRecord {
@@ -38,6 +49,8 @@ export async function streamAnalysis(
 ): Promise<void> {
   // 指纹是免费次数的计数依据，取不到也照常请求，服务端退化成按 IP 计
   const fingerprint = await clientId()
+  // 有通行码就带上，服务端据此跳过免费次数的额度，从码的次数池里扣
+  const pass = currentPass()
 
   let res: Response
   try {
@@ -46,6 +59,7 @@ export async function streamAnalysis(
       headers: {
         "Content-Type": "application/json",
         ...(fingerprint ? { "X-Client-Id": fingerprint } : {}),
+        ...(pass ? { "X-Access-Code": pass } : {}),
       },
       body: JSON.stringify({
         reportId: record.reportId,
@@ -59,7 +73,12 @@ export async function streamAnalysis(
     throw new Error("无法连接解读服务，请确认接口服务已启动", { cause: e })
   }
 
-  if (!res.ok) throw new Error(await readError(res))
+  if (!res.ok) {
+    const { message, code } = await readErrorDetail(res)
+    // 码作废或次数用完就清掉本地这一份，下次解读回到免费次数
+    if (code === PASS_INVALID) setPass("")
+    throw new AnalysisError(message, code)
+  }
   if (!res.body) throw new Error("解读服务没有返回内容")
 
   const reader = res.body.getReader()

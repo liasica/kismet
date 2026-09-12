@@ -13,9 +13,8 @@ import { BaziSessionProvider } from "@/components/bazi-session"
 import { buttonVariants } from "@/components/ui/button"
 import { ZiweiSessionProvider } from "@/components/ziwei-session"
 import { useReports } from "@/lib/reports"
+import { AdminPage } from "@/pages/admin"
 import { AdminReportPage } from "@/pages/admin-report"
-import { AdminReportsPage } from "@/pages/admin-reports"
-import { AdminUsagePage } from "@/pages/admin-usage"
 import { BaziPage } from "@/pages/bazi"
 import { BaziReportPage } from "@/pages/bazi-report"
 import { HomePage } from "@/pages/home"
@@ -56,13 +55,19 @@ class ErrorBoundary extends Component<
   }
 }
 
-/** 所有页面共用这一个容器的宽度，页面内不再各自设最大宽度 */
+/** 所有页面共用这一个容器的宽度，页面内不再各自设最大宽度；后台全宽 */
 export function App() {
   const collected = useReports().length
   const location = useLocation()
+  const wide = location.pathname.startsWith("/admin")
 
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-4xl flex-col gap-12 px-6 py-10">
+    <div
+      className={cn(
+        "mx-auto flex min-h-svh w-full flex-col gap-12 px-6 py-10",
+        !wide && "max-w-4xl"
+      )}
+    >
       <header className="flex items-baseline justify-between gap-6">
         <Link to="/" className="flex items-baseline gap-3">
           <span className="font-heading text-2xl">遇见</span>
@@ -96,13 +101,18 @@ export function App() {
               <Route path="/" element={<HomePage />} />
               <Route path="/bazi" element={<BaziPage />} />
               <Route path="/bazi/report" element={<BaziReportPage />} />
+              <Route path="/bazi/report/:id" element={<BaziReportPage />} />
               <Route path="/ziwei" element={<ZiweiPage />} />
               <Route path="/ziwei/report" element={<ZiweiReportPage />} />
+              <Route path="/ziwei/report/:id" element={<ZiweiReportPage />} />
               <Route path="/saved" element={<SavedPage />} />
               <Route path="/s/:hash" element={<SharedPage />} />
-              <Route path="/admin" element={<AdminReportsPage />} />
+              <Route path="/admin" element={<AdminPage />} />
               <Route path="/admin/reports/:id" element={<AdminReportPage />} />
-              <Route path="/admin/usage" element={<AdminUsagePage />} />
+              <Route
+                path="/admin/usage"
+                element={<Navigate to="/admin" replace />}
+              />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </ErrorBoundary>

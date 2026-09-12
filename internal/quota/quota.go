@@ -4,7 +4,8 @@
 // 撞这一道；来源 IP 是兜底阀，额度大，挡的是同一出口下反复换无痕窗口的量，共享出口的
 // 正常用户撞不到。两道都过才放行。窗口是滚动的，每次调用的时刻都记下来，窗口外的在写入
 // 时裁掉。额度、窗口与黑白名单都由后台改，存在同一个数据文件里，改完立刻生效不必重启；
-// 每次调用的 tokens 用量按主体累计，后台据此看得到花销
+// 每次调用的 tokens 用量按主体累计，后台据此看得到花销。
+// 另有一路通行码（pass.go），带上有效的码即跳过这两层额度
 package quota
 
 import (
@@ -55,6 +56,9 @@ var keyLimits = []byte("limits")
 
 // ErrBlocked 主体被后台拉黑
 var ErrBlocked = errors.New("已被限制使用")
+
+// ErrNotWhitelisted 只对白名单开放期间，主体不在白名单
+var ErrNotWhitelisted = errors.New("不在白名单内")
 
 // LimitError 配额耗尽，带上是哪一层的额度与多久之后能再试
 type LimitError struct {
@@ -181,7 +185,7 @@ type Store struct {
 func New(db *bolt.DB) (*Store, error) {
 	store := &Store{db: db, config: DefaultConfig}
 	err := db.Update(func(tx *bolt.Tx) error {
-		for _, name := range [][]byte{bucketUsage, bucketSettings} {
+		for _, name := range [][]byte{bucketUsage, bucketSettings, bucketPasses} {
 			if _, createErr := tx.CreateBucketIfNotExists(name); createErr != nil {
 				return createErr
 			}
@@ -229,18 +233,43 @@ func (s *Store) SetConfig(config Config) error {
 	return nil
 }
 
-// Check 逐层校验配额，被拉黑返回 ErrBlocked，额度耗尽返回 LimitError
+// Check 逐层校验配额，被拉黑返回 ErrBlocked，额度耗尽返回 LimitError，
+// 只对白名单开放期间主体都不在白名单则返回 ErrNotWhitelisted
 func (s *Store) Check(keys ...Key) error {
 	now := time.Now()
 	config := s.Config()
+	return s.db.View(func(tx *bolt.Tx) error {
+		var whitelisted bool
+		for _, key := range keys {
+			usage, err := readUsage(tx, key.String())
+			if err != nil {
+				return err
+			}
+			if usage.Rule == RuleAllow {
+				whitelisted = true
+			}
+			if err = judge(usage, key.Kind, config, now); err != nil {
+				return err
+			}
+		}
+
+		if config.WhitelistOnly && !whitelisted {
+			return ErrNotWhitelisted
+		}
+		return nil
+	})
+}
+
+// CheckBlocked 只看主体有没有被后台拉黑，带通行码的解读也要过这一道
+func (s *Store) CheckBlocked(keys ...Key) error {
 	return s.db.View(func(tx *bolt.Tx) error {
 		for _, key := range keys {
 			usage, err := readUsage(tx, key.String())
 			if err != nil {
 				return err
 			}
-			if err = judge(usage, key.Kind, config, now); err != nil {
-				return err
+			if usage.Rule == RuleBlock {
+				return ErrBlocked
 			}
 		}
 		return nil

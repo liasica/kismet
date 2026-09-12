@@ -1,10 +1,11 @@
 import * as React from "react"
 import {
   RiArrowLeftLine,
+  RiArrowRightLine,
   RiBookmarkFill,
   RiBookmarkLine,
 } from "@remixicon/react"
-import { Link, Navigate } from "react-router"
+import { Link, Navigate, useParams } from "react-router"
 
 import { AnalysisPanel } from "@/components/analysis-panel"
 import { ShareDialog } from "@/components/share-dialog"
@@ -13,39 +14,48 @@ import { Separator } from "@/components/ui/separator"
 import { ZiweiChartView } from "@/components/ziwei-chart-view"
 import { useZiweiSession } from "@/components/ziwei-session"
 import { ziweiPaipan } from "@kismet/core"
-import type { ZiweiChart } from "@kismet/core"
+import type { ZiweiChart, ZiweiOptions } from "@kismet/core"
 import type { AnalysisRecord } from "@/lib/analysis"
 import { toPaipanInput } from "@/lib/birth-info"
 import type { PosterSubject } from "@/lib/poster"
+import { useRemoteReport } from "@/lib/report-api"
 import { deleteReport, isReportId, saveReport, useReports } from "@/lib/reports"
-import { SYSTEMS } from "@/lib/system"
+import { reportPathOf, SYSTEMS } from "@/lib/system"
 
 /**
- * 紫微报告页：十二宫命盘与命理解读，表单值来自会话存储
+ * 紫微报告页：十二宫命盘与命理解读，地址末段是这份报告的 id
  *
- * 头部的收藏开关把整份报告存进收藏，解读结束后自动收藏并更新正文；
- * 分享按钮生成链接或长图，解读结果本身由服务端在解读时保存
+ * 会话里就是这份报告时按表单值排盘，可收藏、可返回修改；换个标签页打开或解读中途断开后
+ * 重新进来，会话里没有它，就按 id 取服务端存下的排盘输入与已生成的正文。
+ * 头部的收藏开关把整份报告存进收藏，解读结束后自动收藏并更新正文
  */
 export function ZiweiReportPage() {
+  const { id = "" } = useParams()
   const [session] = useZiweiSession()
-  const reportId = session.reportId
-  const saved = useReports().find((r) => r.id === reportId)
+  const remote = useRemoteReport(id)
+  const saved = useReports().find((r) => r.id === id)
+  // 面板里最新的解读正文，点收藏时随报告一起存，长图上排进正文
   const [analysis, setAnalysis] = React.useState(saved?.analysis ?? "")
+
+  // 会话里是这份报告才有表单值，否则只能用服务端存下的排盘输入
+  const local = session.submittedAt > 0 && session.reportId === id
+  const stored = remote.kind === "ready" ? remote.report : undefined
 
   const result = React.useMemo<
     | { chart: ZiweiChart; error?: undefined }
     | { chart?: undefined; error: string }
   >(() => {
-    const input = toPaipanInput(session.birth)
-    if (!input) return { error: "请先填写出生时间与性别" }
+    const input = local ? toPaipanInput(session.birth) : stored?.input
+    const options = local ? session.options : stored?.options
+    if (!input || !options) return { error: "请先填写出生时间与性别" }
     try {
-      return { chart: ziweiPaipan(input, session.options) }
+      return { chart: ziweiPaipan(input, options as ZiweiOptions) }
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) }
     }
-  }, [session.birth, session.options])
+  }, [local, session.birth, session.options, stored])
 
-  // 引用稳定，避免海报与解读面板的 effect 因父组件重渲染而重跑
+  // 引用稳定，避免长图与解读面板的 effect 因父组件重渲染而重跑
   const subject = React.useMemo<PosterSubject | undefined>(
     () => (result.chart ? { system: "ziwei", chart: result.chart } : undefined),
     [result.chart]
@@ -55,21 +65,27 @@ export function ZiweiReportPage() {
       result.chart
         ? {
             system: "ziwei",
-            reportId,
+            reportId: id,
             input: result.chart.input,
             options: result.chart.options,
           }
         : undefined,
-    [reportId, result.chart]
+    [id, result.chart]
   )
 
-  if (!session.submittedAt || !isReportId(reportId)) {
-    return <Navigate to={SYSTEMS.ziwei.path} replace />
+  // 地址不带 id 时补上会话里的那一份
+  if (!id) {
+    return isReportId(session.reportId) ? (
+      <Navigate to={reportPathOf("ziwei", session.reportId)} replace />
+    ) : (
+      <Navigate to={SYSTEMS.ziwei.path} replace />
+    )
   }
+  if (!isReportId(id)) return <Navigate to={SYSTEMS.ziwei.path} replace />
 
   const save = (text: string) =>
     saveReport({
-      id: reportId,
+      id,
       system: "ziwei",
       savedAt: Date.now(),
       birth: session.birth,
@@ -79,10 +95,10 @@ export function ZiweiReportPage() {
 
   const complete = (text: string) => {
     setAnalysis(text)
-    save(text)
+    if (local) save(text)
   }
 
-  const toggle = () => (saved ? deleteReport(reportId) : save(analysis))
+  const toggle = () => (saved ? deleteReport(id) : save(analysis))
 
   return (
     <section className="flex flex-col gap-10">
@@ -96,34 +112,43 @@ export function ZiweiReportPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            aria-pressed={!!saved}
-            onClick={toggle}
-          >
-            {saved ? (
-              <RiBookmarkFill data-icon="inline-start" />
-            ) : (
-              <RiBookmarkLine data-icon="inline-start" />
-            )}
-            {saved ? "已收藏" : "收藏"}
-          </Button>
-          {subject && (
-            <ShareDialog
-              reportId={reportId}
-              subject={subject}
-              analysis={analysis}
-            />
+          {local && (
+            <Button
+              variant="outline"
+              size="sm"
+              aria-pressed={!!saved}
+              onClick={toggle}
+            >
+              {saved ? (
+                <RiBookmarkFill data-icon="inline-start" />
+              ) : (
+                <RiBookmarkLine data-icon="inline-start" />
+              )}
+              {saved ? "已收藏" : "收藏"}
+            </Button>
           )}
-          <Link
-            to={SYSTEMS.ziwei.path}
-            state={{ edit: true }}
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-          >
-            <RiArrowLeftLine data-icon="inline-start" />
-            返回修改
-          </Link>
+          {subject && (
+            <ShareDialog reportId={id} subject={subject} analysis={analysis} />
+          )}
+          {local ? (
+            // 带 edit 进表单页，表单页用本次报告的值初始化草稿
+            <Link
+              to={SYSTEMS.ziwei.path}
+              state={{ edit: true }}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              <RiArrowLeftLine data-icon="inline-start" />
+              返回修改
+            </Link>
+          ) : (
+            <Link
+              to={SYSTEMS.ziwei.path}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              我也排一盘
+              <RiArrowRightLine data-icon="inline-end" />
+            </Link>
+          )}
         </div>
       </div>
 
@@ -131,15 +156,23 @@ export function ZiweiReportPage() {
         <>
           <ZiweiChartView chart={result.chart} />
           <Separator />
-          <AnalysisPanel
-            key={session.submittedAt}
-            record={record}
-            initialText={saved?.analysis}
-            onComplete={complete}
-          />
+          {remote.kind === "loading" ? (
+            <p className="text-sm text-muted-foreground">加载中</p>
+          ) : (
+            <AnalysisPanel
+              key={`${id}:${session.submittedAt}`}
+              record={record}
+              initialText={saved?.analysis || stored?.analysis}
+              onComplete={complete}
+            />
+          )}
         </>
+      ) : remote.kind === "loading" ? (
+        <p className="text-sm text-muted-foreground">加载中</p>
       ) : (
-        <p className="text-sm text-destructive">{result.error}</p>
+        <p className="text-sm text-destructive">
+          {local ? result.error : "找不到这份报告，它可能还没有解读过"}
+        </p>
       )}
     </section>
   )

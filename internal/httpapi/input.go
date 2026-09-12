@@ -32,6 +32,8 @@ var regionCodePattern = regexp.MustCompile(`^\d{6}(\d{3})?$`)
 type apiError struct {
 	status  int
 	message string
+	// code 机器可读的标识，前端据此认出这一类错误，为空时不输出
+	code string
 }
 
 func (e apiError) Error() string {

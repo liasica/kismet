@@ -3,8 +3,14 @@ import { RiSparklingLine, RiStopLine } from "@remixicon/react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
+import { PassField } from "@/components/pass-field"
 import { Button } from "@/components/ui/button"
-import { streamAnalysis, type AnalysisRecord } from "@/lib/analysis"
+import {
+  AnalysisError,
+  streamAnalysis,
+  type AnalysisRecord,
+} from "@/lib/analysis"
+import { QUOTA_EXHAUSTED } from "@/lib/pass"
 
 type Status = "idle" | "thinking" | "streaming" | "done" | "error"
 
@@ -32,6 +38,10 @@ export function AnalysisPanel({
   )
   const [text, setText] = React.useState(initialText ?? "")
   const [error, setError] = React.useState<string>()
+  // 免费次数不够时自动展开通行码的输入框
+  const [passOpen, setPassOpen] = React.useState(false)
+  // 解读会扣掉通行码的次数，结束后让它重查剩余次数
+  const [passReload, setPassReload] = React.useState(0)
   const abortRef = React.useRef<AbortController | null>(null)
 
   React.useEffect(() => () => abortRef.current?.abort(), [])
@@ -60,8 +70,13 @@ export function AnalysisPanel({
       if (full) onComplete?.(full)
     } catch (e) {
       if (controller.signal.aborted) return
+      if (e instanceof AnalysisError && e.code === QUOTA_EXHAUSTED) {
+        setPassOpen(true)
+      }
       setError(e instanceof Error ? e.message : String(e))
       setStatus("error")
+    } finally {
+      setPassReload((count) => count + 1)
     }
   }
 
@@ -91,6 +106,12 @@ export function AnalysisPanel({
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
+
+      <PassField
+        open={passOpen}
+        onOpenChange={setPassOpen}
+        reload={passReload}
+      />
 
       {status === "done" && !text && (
         <p className="text-sm text-muted-foreground">解读服务没有返回正文</p>
