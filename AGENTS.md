@@ -11,7 +11,7 @@
 | 服务 | Go 1.27，标准库 `net/http` | 静态资源、八字排盘接口、紫微排盘引擎、紫微解读的知识库检索、DeepSeek 转发、报告与分享、免费次数的配额 |
 | 存储 | bbolt | 单文件键值库，存解读报告、分享设置与免费次数的用量，路径由 `DB_PATH` 指定 |
 | 构建 | Vite 8 + React 19 + TypeScript 6 | SPA，无 SSR |
-| 路由 | react-router 8 | 声明式 `BrowserRouter`，页面在 `web/app/src/pages/`：`/` 两张卡片各进一套体系、`/bazi` 表单、`/bazi/report/:id` 排盘与解读、`/ziwei` 表单、`/ziwei/report/:id` 排盘与解读、`/saved` 收藏、`/s/:hash` 分享页、`/admin` 后台的免费次数与报告、`/admin/reports/:id` 后台的报告详情 |
+| 路由 | react-router 8 | 声明式 `BrowserRouter`，页面在 `web/app/src/pages/`：`/` 两张卡片各进一套体系、`/bazi` 表单、`/bazi/report/:id` 排盘与解读、`/ziwei` 表单、`/ziwei/report/:id` 排盘与解读、`/saved` 收藏、`/s/:hash` 分享页、`/admin/settings`、`/admin/reports`、`/admin/usage` 与 `/admin/passes` 后台的四个页面、`/admin/reports/:id` 后台的报告详情 |
 | 样式 | Tailwind CSS v4 | CSS-first，无 `tailwind.config`，主题变量集中在 `web/app/src/index.css` |
 | 组件 | shadcn/ui，style `base-sera` | 配置见 `web/app/components.json` |
 | 组件基座 | `@base-ui/react` | 不是 Radix |
@@ -146,15 +146,16 @@ make fixtures   # 重新生成两套跨语言黄金基准并用 Go 侧比对
 ## 后台管理
 
 - 密码是环境变量 `ADMIN_PASSWORD`，未设置时后台接口返回 503；前端 `/admin` 输入后放在 sessionStorage，关掉标签页即失效，每次请求以 `Authorization: Bearer <密码>` 携带，密码限 ASCII 可见字符
-- `GET /api/admin/reports?offset=&limit=` 按创建时间倒序分页列出全部报告，返回 `{"total", "reports": [{id, createdAt, updatedAt, system, input, model, analysisRunes, share, client}]}`，不带正文，`limit` 默认 50、最大 200；`GET /api/admin/reports/{id}` 返回单份报告的全部内容，比列表项多 `options` 与 `analysis`。密码缺失或不正确返回 401，连续输错 5 次冷却 30 秒，计数不按客户端区分
+- `GET /api/admin/reports?offset=&limit=` 按创建时间倒序分页列出全部报告，返回 `{"total", "reports": [{id, createdAt, updatedAt, system, input, model, analysisRunes, share, client}]}`，不带正文，`limit` 默认 50、最大 200；`GET /api/admin/reports/{id}` 返回单份报告的全部内容，比列表项多 `options` 与 `analysis`；`GET /api/admin/reports/{id}/usage` 返回这份报告的客户端对应的配额主体 `{"items", "limits"}`，指纹一条、来源 IP 一条，条目与用量列表的一致，没记过用量的主体回零值。密码缺失或不正确返回 401，连续输错 5 次冷却 30 秒，计数不按客户端区分
 - `GET /api/admin/usage?offset=&limit=` 按最近一次调用倒序分页列出各配额主体，返回 `{"total", "items": [{key, kind, value, recent, total, firstAt, lastAt, userAgent, ip, tokens, rule, note, reports, reportTotal}]}` 与生效中的 `limits`，`reports` 是这个主体名下最近 10 份报告的 `{id, system, name, createdAt, analysisRunes}`，`limit` 默认 50、最大 200；`POST /api/admin/usage/reset` 收 `{"key"}` 清掉窗口内的计数，`POST /api/admin/usage/rule` 收 `{"key", "rule", "note"}` 设处置（`allow` 不限次、`block` 拉黑、空即按额度），两者都回写改动后的那一条。主体键形如 `client:<指纹>` 或 `ip:<地址>`
-- `POST /api/admin/quota` 收 `{"client", "ip", "windowHours", "whitelistOnly"}` 改额度、窗口与白名单开关，返回改后的值；次数 0 到 100000、窗口 1 分钟到 30 天，越界返回 400
+- `GET /api/admin/quota` 返回生效中的额度、窗口与白名单开关，登录也拿它试密码；`POST /api/admin/quota` 收 `{"client", "ip", "windowHours", "whitelistOnly"}` 改这几项，返回改后的值；次数 0 到 100000、窗口 1 分钟到 30 天，越界返回 400
 - `GET /api/admin/passes?offset=&limit=` 按生成时间倒序分页列出全部通行码，返回 `{"total", "passes": [{code, kind, times, used, left, valid, reason, note, disabled, createdAt, lastAt, lastIp, lastUserAgent, clients, tokens}]}`，`limit` 默认 50、最大 200；`POST /api/admin/passes` 收 `{"kind", "times", "count", "note"}` 生成一批并原样返回（一次最多 100 把），`POST /api/admin/passes/disable` 收 `{"code", "disabled"}` 作废或恢复一把，回写改动后的那一条
-- 前端 `/admin` 是整页宽（其余页面共用 `App.tsx` 的 `max-w-4xl`），免费次数、通行码与报告列在同一页，三节的组件在 `web/app/src/components/admin-usage-table.tsx`、`admin-pass-table.tsx` 与 `admin-report-table.tsx`：
-  - 免费次数：顶部是额度、窗口与「仅白名单可解读」，改完点保存即存即生效；下面列出各浏览器与各 IP 的用量（主体、报告份数、窗口内次数与额度、累计 tokens、最近一次、来源 IP、状态），每行可清零、设不限次或拉黑，改完就地换掉那一行不重拉整页；点报告份数展开这个主体名下的报告（时间、姓名、体系、字数），点姓名进报告详情
-  - 通行码：顶部填类型、次数、生成几把与备注，生成后这一批列在下方可整批复制；下面列出全部码（码、类型、用量、累计 tokens、最近一次与它的 IP 与浏览器、备注、状态），每行可复制或作废恢复，改完就地换掉那一行
-  - 报告：全部报告按创建时间倒序（创建时间、姓名、体系、出生时刻、出生地、来源 IP 与浏览器、解读字数、分享状态），点一行进 `/admin/reports/:id`
-  - 三张表各自分页，页码分别在查询参数 `upage`、`ppage` 与 `page`；`/admin/usage` 跳回 `/admin`
+- 前端后台分四个页面，路径分别是 `/admin/settings`、`/admin/reports`、`/admin/usage` 与 `/admin/passes`，`/admin` 跳到设置页；外框是 `web/app/src/pages/admin.tsx` 的 `AdminLayout`：密码门、标题与四个页面的导航，内容由各页面填。四个页面都是整页宽，报告详情与未登录时的登录表单用 `App.tsx` 的 `max-w-4xl`，登录表单整屏居中
+  - 设置（`components/admin-quota-form.tsx`）：额度、窗口与「仅白名单可解读」，改完点保存即存即生效
+  - 报告（`components/admin-report-table.tsx`）：全部报告按创建时间倒序（创建时间、姓名、体系、出生时刻、出生地、来源 IP 与浏览器、用量、解读字数、分享状态），点一行进 `/admin/reports/:id`；点「用量」开右侧抽屉（`components/admin-report-usage.tsx`），列出这份报告的指纹与 IP 两个主体的次数、tokens、最近一次与名下报告，就地可清零、设不限次或拉黑
+  - 用量（`components/admin-usage-table.tsx`）：各浏览器与各 IP 的用量（主体、报告份数、窗口内次数与额度、累计 tokens、最近一次、来源 IP、状态），每行可清零、设不限次或拉黑，改完就地换掉那一行不重拉整页；点报告份数展开这个主体名下的报告（时间、姓名、体系、字数），点姓名进报告详情
+  - Key（`components/admin-pass-table.tsx`）：顶部填类型、次数、生成几把与备注，生成后这一批列在下方可整批复制；下面列出全部码（码、类型、用量、累计 tokens、最近一次与它的 IP 与浏览器、备注、状态），每行可复制或作废恢复，改完就地换掉那一行
+  - 三个列表页各自分页，页码都在查询参数 `page` 里
 - `/admin/reports/:id` 先列出报告 id、体系、时间、模型、来源 IP、浏览器、指纹与分享链接，再按体系与保存的输入在本地重新排盘并展示解读正文；分享页与后台详情共用 `web/app/src/components/report-view.tsx`。头部导航不放后台入口，直接访问路径
 
 ## 开发约定

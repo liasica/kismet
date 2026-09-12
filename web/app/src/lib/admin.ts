@@ -6,6 +6,7 @@
  */
 
 import { useSyncExternalStore } from "react"
+import { useSearchParams } from "react-router"
 
 import type { PaipanInput } from "@kismet/core"
 import { API_BASE, readError } from "@/lib/api"
@@ -147,6 +148,21 @@ export async function fetchAdminReport(
   if (res.status === 404) return undefined
   if (!res.ok) throw new Error(await readError(res))
   return (await res.json()) as AdminReport
+}
+
+/** 列表页的页码放在查询参数 `page` 里，返回当前页与换页的方法 */
+export function usePageParam(): [number, (page: number) => void] {
+  const [params, setParams] = useSearchParams()
+  const page = Math.max(1, Math.floor(Number(params.get("page")) || 1))
+
+  const goto = (next: number) => {
+    const updated = new URLSearchParams(params)
+    if (next > 1) updated.set("page", String(next))
+    else updated.delete("page")
+    setParams(updated)
+  }
+
+  return [page, goto]
 }
 
 /** 出生时刻的显示格式，如 `1990-05-03 12:30` */

@@ -74,6 +74,13 @@ type adminUsageList struct {
 	Limits quotaLimits `json:"limits"`
 }
 
+// adminReportUsage 一份报告的客户端对应的那些配额主体
+type adminReportUsage struct {
+	Items []adminUsage `json:"items"`
+	// Limits 生效中的额度，0 即该层不限次
+	Limits quotaLimits `json:"limits"`
+}
+
 // quotaLimits 生效中的额度与窗口，也是后台改额度的请求体
 type quotaLimits struct {
 	Client int `json:"client"`
@@ -158,6 +165,60 @@ func (s *Server) handleAdminUsage(w http.ResponseWriter, r *http.Request) {
 		list.Items = append(list.Items, row)
 	}
 	writeJSON(w, http.StatusOK, list)
+}
+
+// handleAdminReportUsage 列出一份报告的客户端对应的配额主体，后台从报告一眼看到这个人用了多少
+func (s *Server) handleAdminReportUsage(w http.ResponseWriter, r *http.Request) {
+	id, err := requireReportID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	var item report.Report
+	if item, err = s.reports.Get(id); err != nil {
+		writeError(w, reportError(err))
+		return
+	}
+
+	config := s.quota.Config()
+	list := adminReportUsage{Items: []adminUsage{}, Limits: limitsOf(config)}
+	if item.Client == nil {
+		writeJSON(w, http.StatusOK, list)
+		return
+	}
+
+	var grouped map[string]*usageReports
+	if grouped, err = s.reportsByQuotaKey(); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	for _, key := range quotaKeysOf(*item.Client) {
+		var usage quota.Usage
+		if usage, err = s.quota.Get(key.String()); err != nil {
+			writeError(w, err)
+			return
+		}
+		// 从没记过用量的主体读出来是零值，按键补齐，后台照样能改它的处置
+		if usage.Key == "" {
+			usage.Key, usage.Kind, usage.Value = key.String(), key.Kind, key.Value
+		}
+
+		row := usageOf(usage, config.Window)
+		if bucket := grouped[key.String()]; bucket != nil {
+			row.Reports = bucket.items
+			row.ReportTotal = bucket.total
+		}
+		list.Items = append(list.Items, row)
+	}
+
+	writeJSON(w, http.StatusOK, list)
+}
+
+// handleAdminQuotaLimits 取生效中的额度与窗口
+func (s *Server) handleAdminQuotaLimits(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, limitsOf(s.quota.Config()))
 }
 
 // handleAdminQuota 改额度与窗口，写进数据文件并立刻对后续请求生效

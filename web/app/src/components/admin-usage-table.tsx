@@ -11,9 +11,6 @@ import { Link } from "react-router"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
 import {
   Table,
   TableBody,
@@ -36,7 +33,6 @@ import {
   formatTokens,
   resetUsage,
   setUsageRule,
-  updateQuota,
   USAGE_PAGE_SIZE,
   usageKindLabel,
   usageRuleLabel,
@@ -50,7 +46,7 @@ import {
 } from "@/lib/usage"
 
 /**
- * 后台的用量一节：额度设置，以及按浏览器指纹与来源 IP 列出的解读次数
+ * 后台的用量页：按浏览器指纹与来源 IP 列出的解读次数
  *
  * 每一行可以展开这个主体名下的报告，据此认出它是谁；改处置就地换掉那一行，不重拉整页
  */
@@ -103,7 +99,13 @@ function UsageTable({ page, onGoto }: UsageSectionProps) {
               page: {
                 ...current.page,
                 items: current.page.items.map((item) =>
-                  item.key === key ? updated : item
+                  item.key === key
+                    ? {
+                        ...updated,
+                        reports: item.reports,
+                        reportTotal: item.reportTotal,
+                      }
+                    : item
                 ),
               },
             }
@@ -126,26 +128,13 @@ function UsageTable({ page, onGoto }: UsageSectionProps) {
   return (
     <section className="flex flex-col gap-6">
       <div className="flex items-baseline justify-between gap-4">
-        <h2 className="font-heading text-lg">免费次数</h2>
+        <h2 className="font-heading text-lg">用量</h2>
         {total !== undefined && (
           <span className="text-sm text-muted-foreground">
             共 {total} 个主体
           </span>
         )}
       </div>
-
-      {state.kind === "ready" && (
-        <QuotaEditor
-          limits={state.page.limits}
-          onSaved={(limits) =>
-            setState((current) =>
-              current.kind === "ready"
-                ? { kind: "ready", page: { ...current.page, limits } }
-                : current
-            )
-          }
-        />
-      )}
 
       {state.kind === "loading" && (
         <p className="text-sm text-muted-foreground">加载中</p>
@@ -223,133 +212,6 @@ function UsageTable({ page, onGoto }: UsageSectionProps) {
         </div>
       )}
     </section>
-  )
-}
-
-/** 生效中的额度，就地改，存在服务端不必重启 */
-function QuotaEditor({
-  limits,
-  onSaved,
-}: {
-  limits: QuotaLimits
-  onSaved: (limits: QuotaLimits) => void
-}) {
-  const password = useAdminPassword()
-  const [draft, setDraft] = React.useState(() => draftOf(limits))
-  const [busy, setBusy] = React.useState(false)
-  const [error, setError] = React.useState<string>()
-  const dirty =
-    draft.client !== String(limits.client) ||
-    draft.ip !== String(limits.ip) ||
-    draft.windowHours !== String(limits.windowHours) ||
-    draft.whitelistOnly !== limits.whitelistOnly
-
-  const save = async () => {
-    setBusy(true)
-    setError(undefined)
-    try {
-      const saved = await updateQuota(password, {
-        client: Number(draft.client),
-        ip: Number(draft.ip),
-        windowHours: Number(draft.windowHours),
-        whitelistOnly: draft.whitelistOnly,
-      })
-      setDraft(draftOf(saved))
-      onSaved(saved)
-    } catch (e) {
-      if (e instanceof UnauthorizedError) setAdminPassword("")
-      else setError(errorMessage(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-3 border border-border p-5">
-      <div className="flex flex-wrap items-end gap-6">
-        <QuotaField
-          id="quota-client"
-          label="单个浏览器"
-          suffix="次"
-          value={draft.client}
-          onChange={(client) => setDraft({ ...draft, client })}
-        />
-        <QuotaField
-          id="quota-ip"
-          label="单个 IP"
-          suffix="次"
-          value={draft.ip}
-          onChange={(ip) => setDraft({ ...draft, ip })}
-        />
-        <QuotaField
-          id="quota-window"
-          label="滚动窗口"
-          suffix="小时"
-          value={draft.windowHours}
-          onChange={(windowHours) => setDraft({ ...draft, windowHours })}
-        />
-        <Field orientation="horizontal" className="w-auto">
-          <Switch
-            id="quota-whitelist"
-            checked={draft.whitelistOnly}
-            onCheckedChange={(whitelistOnly) =>
-              setDraft({ ...draft, whitelistOnly })
-            }
-          />
-          <FieldLabel
-            htmlFor="quota-whitelist"
-            className="flex-col items-start gap-1 font-normal"
-          >
-            仅白名单可解读
-            <FieldDescription className="m-0">
-              开着时只有设为不限次的主体能解读，其余一律拒绝
-            </FieldDescription>
-          </FieldLabel>
-        </Field>
-        <Button size="sm" disabled={!dirty || busy} onClick={() => void save()}>
-          保存
-        </Button>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        次数填 0 即这一层不限；改完对后续请求立刻生效
-      </p>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-    </div>
-  )
-}
-
-function draftOf(limits: QuotaLimits) {
-  return {
-    client: String(limits.client),
-    ip: String(limits.ip),
-    windowHours: String(limits.windowHours),
-    whitelistOnly: limits.whitelistOnly,
-  }
-}
-
-interface QuotaFieldProps {
-  id: string
-  label: string
-  suffix: string
-  value: string
-  onChange: (value: string) => void
-}
-
-function QuotaField({ id, label, suffix, value, onChange }: QuotaFieldProps) {
-  return (
-    <Field className="w-40">
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <span className="flex items-center gap-2">
-        <Input
-          id={id}
-          inputMode="decimal"
-          className="min-w-0"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        <span className="shrink-0 text-sm text-muted-foreground">{suffix}</span>
-      </span>
-    </Field>
   )
 }
 

@@ -1,35 +1,23 @@
 import { RiLogoutBoxRLine } from "@remixicon/react"
-import { useSearchParams } from "react-router"
+import { cn } from "cn"
+import { NavLink, Outlet } from "react-router"
 
 import { AdminGate, AdminHeading } from "@/components/admin-gate"
-import { PassSection } from "@/components/admin-pass-table"
-import { ReportSection } from "@/components/admin-report-table"
-import { UsageSection } from "@/components/admin-usage-table"
 import { Button } from "@/components/ui/button"
 import { setAdminPassword } from "@/lib/admin"
 
-/**
- * 后台：免费次数、通行码与报告列在同一页，用量那一行展开就是这个主体名下的报告
- *
- * 三张表各自分页，页码分别放在查询参数 `upage`、`ppage` 与 `page` 里
- */
-export function AdminPage() {
-  const [params, setParams] = useSearchParams()
-  const reportPage = pageOf(params.get("page"))
-  const usagePage = pageOf(params.get("upage"))
-  const passPage = pageOf(params.get("ppage"))
+const TABS: Array<{ to: string; label: string }> = [
+  { to: "/admin/settings", label: "设置" },
+  { to: "/admin/reports", label: "报告" },
+  { to: "/admin/usage", label: "用量" },
+  { to: "/admin/passes", label: "Key" },
+]
 
-  // 只改一个参数，其余的表留在原来那一页
-  const goto = (name: string, value: number) => {
-    const next = new URLSearchParams(params)
-    if (value > 1) next.set(name, String(value))
-    else next.delete(name)
-    setParams(next)
-  }
-
+/** 后台的外框：密码门、标题、四个页面的导航，内容由各页面填 */
+export function AdminLayout() {
   return (
     <AdminGate>
-      <div className="flex flex-col gap-12">
+      <div className="flex flex-col gap-10">
         <AdminHeading>
           <Button
             variant="outline"
@@ -41,17 +29,27 @@ export function AdminPage() {
           </Button>
         </AdminHeading>
 
-        <UsageSection
-          page={usagePage}
-          onGoto={(next) => goto("upage", next)}
-        />
-        <PassSection page={passPage} onGoto={(next) => goto("ppage", next)} />
-        <ReportSection page={reportPage} onGoto={(next) => goto("page", next)} />
+        <nav className="flex items-center gap-8 border-b border-border">
+          {TABS.map((tab) => (
+            <NavLink
+              key={tab.to}
+              to={tab.to}
+              className={({ isActive }) =>
+                cn(
+                  "-mb-px border-b-2 pb-3 text-sm transition-colors",
+                  isActive
+                    ? "border-foreground text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )
+              }
+            >
+              {tab.label}
+            </NavLink>
+          ))}
+        </nav>
+
+        <Outlet />
       </div>
     </AdminGate>
   )
-}
-
-function pageOf(raw: string | null): number {
-  return Math.max(1, Math.floor(Number(raw) || 1))
 }

@@ -64,6 +64,11 @@ export interface QuotaLimits {
   whitelistOnly: boolean
 }
 
+/** 取生效中的额度与窗口 */
+export function fetchQuota(password: string): Promise<QuotaLimits> {
+  return adminJSON<QuotaLimits>("/api/admin/quota", password)
+}
+
 /** 改额度与窗口，写进服务端的数据文件并立刻生效 */
 export function updateQuota(
   password: string,
@@ -91,6 +96,20 @@ export function fetchUsage(
     `/api/admin/usage?offset=${offset}&limit=${USAGE_PAGE_SIZE}`,
     password
   )
+}
+
+/** 一份报告的客户端对应的那些配额主体：指纹一个、来源 IP 一个 */
+export interface ReportUsage {
+  items: AdminUsage[]
+  limits: QuotaLimits
+}
+
+/** 取一份报告的客户端用了多少次，报告列表据此展开用量详情 */
+export function fetchReportUsage(
+  password: string,
+  id: string
+): Promise<ReportUsage> {
+  return adminJSON<ReportUsage>(`/api/admin/reports/${id}/usage`, password)
 }
 
 /** 清掉一个主体在窗口内的计数，返回它改动后的样子 */

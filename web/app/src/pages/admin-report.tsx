@@ -42,7 +42,7 @@ function ReportDetail({ id }: { id: string }) {
   const [state, setState] = React.useState<State>({ kind: "loading" })
   // 从列表进来时带着页码，返回时回到原来那一页
   const page = params.get("page")
-  const listPath = page ? `/admin?page=${page}` : "/admin"
+  const listPath = page ? `/admin/reports?page=${page}` : "/admin/reports"
 
   React.useEffect(() => {
     let cancelled = false

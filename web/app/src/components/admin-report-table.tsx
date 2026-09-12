@@ -2,6 +2,7 @@ import * as React from "react"
 import { RiArrowLeftSLine, RiArrowRightSLine } from "@remixicon/react"
 import { Link, useNavigate } from "react-router"
 
+import { ReportUsageSheet } from "@/components/admin-report-usage"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -113,6 +114,7 @@ function ReportTable({ page, onGoto }: ReportSectionProps) {
               <TableHead>出生时刻</TableHead>
               <TableHead>出生地</TableHead>
               <TableHead>来源</TableHead>
+              <TableHead>用量</TableHead>
               <TableHead>解读</TableHead>
               <TableHead>分享</TableHead>
             </TableRow>
@@ -166,6 +168,9 @@ function ReportTable({ page, onGoto }: ReportSectionProps) {
                       </span>
                     )}
                   </span>
+                </TableCell>
+                <TableCell>
+                  <ReportUsageSheet report={report} />
                 </TableCell>
                 <TableCell className="text-muted-foreground tabular-nums">
                   {report.analysisRunes > 0

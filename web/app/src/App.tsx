@@ -12,9 +12,14 @@ import {
 import { BaziSessionProvider } from "@/components/bazi-session"
 import { buttonVariants } from "@/components/ui/button"
 import { ZiweiSessionProvider } from "@/components/ziwei-session"
+import { useAdminPassword } from "@/lib/admin"
 import { useReports } from "@/lib/reports"
-import { AdminPage } from "@/pages/admin"
+import { AdminLayout } from "@/pages/admin"
+import { AdminPassesPage } from "@/pages/admin-passes"
 import { AdminReportPage } from "@/pages/admin-report"
+import { AdminReportsPage } from "@/pages/admin-reports"
+import { AdminSettingsPage } from "@/pages/admin-settings"
+import { AdminUsagePage } from "@/pages/admin-usage"
 import { BaziPage } from "@/pages/bazi"
 import { BaziReportPage } from "@/pages/bazi-report"
 import { HomePage } from "@/pages/home"
@@ -55,11 +60,12 @@ class ErrorBoundary extends Component<
   }
 }
 
-/** 所有页面共用这一个容器的宽度，页面内不再各自设最大宽度；后台全宽 */
+/** 所有页面共用这一个容器的宽度，页面内不再各自设最大宽度；后台的管理页全宽 */
 export function App() {
   const collected = useReports().length
   const location = useLocation()
-  const wide = location.pathname.startsWith("/admin")
+  // 后台未登录时是一张登录表单，与报告详情一样用前台的宽度
+  const wide = useAdminPassword() !== "" && isWideAdmin(location.pathname)
 
   return (
     <div
@@ -107,12 +113,17 @@ export function App() {
               <Route path="/ziwei/report/:id" element={<ZiweiReportPage />} />
               <Route path="/saved" element={<SavedPage />} />
               <Route path="/s/:hash" element={<SharedPage />} />
-              <Route path="/admin" element={<AdminPage />} />
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route
+                  index
+                  element={<Navigate to="/admin/settings" replace />}
+                />
+                <Route path="settings" element={<AdminSettingsPage />} />
+                <Route path="reports" element={<AdminReportsPage />} />
+                <Route path="usage" element={<AdminUsagePage />} />
+                <Route path="passes" element={<AdminPassesPage />} />
+              </Route>
               <Route path="/admin/reports/:id" element={<AdminReportPage />} />
-              <Route
-                path="/admin/usage"
-                element={<Navigate to="/admin" replace />}
-              />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </ErrorBoundary>
@@ -120,6 +131,12 @@ export function App() {
       </BaziSessionProvider>
     </div>
   )
+}
+
+/** 后台的管理页全宽，报告详情回到前台的宽度 */
+function isWideAdmin(pathname: string): boolean {
+  if (!pathname.startsWith("/admin")) return false
+  return !/^\/admin\/reports\/.+/.test(pathname)
 }
 
 export default App
