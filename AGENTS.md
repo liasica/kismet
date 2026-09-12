@@ -89,9 +89,11 @@ make fixtures   # 重新生成两套跨语言黄金基准并用 Go 侧比对
 
 推 `master` 触发 `.github/workflows/deploy.yml`：`Dockerfile` 多阶段构建，Node 阶段出前端产物，Go 阶段把它与区划数据 embed 进单二进制，最终镜像基于 alpine，推到 `ghcr.io/liasica/kismet`，再 ssh 到服务器 `docker compose pull && docker compose up -d`。
 
-服务器的部署目录放 `compose.yaml` 与 `.env`，两者都由工作流写入。`.env` 里的 `IMAGE_TAG` 是本次部署的 commit sha，回滚就是把它改回旧 sha 再 `docker compose up -d`。容器只监听 `127.0.0.1:36579`，TLS 与对外访问由宿主机的 nginx 反代承担。报告数据在命名卷 `kismet-data`（容器内 `/data`），换镜像不丢。
+服务器的部署目录放 `compose.yaml` 与 `.env`。`compose.yaml` 每次部署整份覆盖；`.env` 分两部分，工作流只重写自己管的那几行（`IMAGE_TAG`、`DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL`、`PORT`、`ALLOWED_ORIGINS`、`REAL_IP_HEADER`），`DEEPSEEK_API_KEY` 与 `ADMIN_PASSWORD` 两行从旧文件原样保留，在服务器上手工维护，不经 CI。`IMAGE_TAG` 是本次部署的 commit sha，回滚就是把它改回旧 sha 再 `docker compose up -d`。容器只监听 `127.0.0.1:36579`，TLS 与对外访问由宿主机的 nginx 反代承担。报告数据在命名卷 `kismet-data`（容器内 `/data`），换镜像不丢。`DB_PATH` 由镜像的 `ENV` 给到 `/data/kismet.db`，`.env` 不重复写。
 
-主机、账号、部署路径、部署私钥与 DeepSeek 密钥都在仓库 secrets：`SSH_HOST`、`SSH_USER`、`DEPLOY_PATH`、`SSH_KEY`、`SSH_KNOWN_HOSTS`、`DEEPSEEK_API_KEY`、`ADMIN_PASSWORD`；`DEEPSEEK_BASE_URL` 与 `DEEPSEEK_MODEL` 是仓库 variables。
+换机器或头一回部署时 `.env` 里没有这两行密钥，写出来的文件只有工作流管的部分，服务照常起但解读与后台接口返回 503，补上这两行再 `docker compose up -d` 即可。
+
+主机、账号、部署路径与部署私钥在仓库 secrets：`SSH_HOST`、`SSH_USER`、`DEPLOY_PATH`、`SSH_KEY`、`SSH_KNOWN_HOSTS`；`DEEPSEEK_BASE_URL` 与 `DEEPSEEK_MODEL` 是仓库 variables。
 
 ## 命理解读
 

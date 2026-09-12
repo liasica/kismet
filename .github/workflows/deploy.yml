@@ -73,20 +73,24 @@ jobs:
       - name: Upload compose file
         run: scp compose.yaml "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/compose.yaml"
 
-      # 密钥经 stdin 送到远端写入 .env，不出现在任一侧的进程参数里
+      # 密钥由服务器上的 .env 手工维护，这里只重写工作流管的那几行，密钥行原样留下
       - name: Write environment file
         env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          IMAGE_TAG: ${{ github.sha }}
           DEEPSEEK_BASE_URL: ${{ vars.DEEPSEEK_BASE_URL }}
           DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         run: |
-          ssh "$SSH_USER@$SSH_HOST" "umask 077 && cat > '$DEPLOY_PATH/.env'" <<ENVFILE
-          IMAGE_TAG=${{ github.sha }}
-          DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY
+          ssh "$SSH_USER@$SSH_HOST" "
+            umask 077 && cd '$DEPLOY_PATH' &&
+            { cat; grep -E '^(DEEPSEEK_API_KEY|ADMIN_PASSWORD)=' .env 2>/dev/null || true; } > .env.new &&
+            mv .env.new .env
+          " <<ENVFILE
+          IMAGE_TAG=$IMAGE_TAG
           DEEPSEEK_BASE_URL=$DEEPSEEK_BASE_URL
           DEEPSEEK_MODEL=$DEEPSEEK_MODEL
-          ADMIN_PASSWORD=$ADMIN_PASSWORD
+          PORT=36579
+          ALLOWED_ORIGINS=
+          REAL_IP_HEADER=X-Real-IP
           ENVFILE
 
       - name: Pull image and restart service
