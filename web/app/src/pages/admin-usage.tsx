@@ -1,0 +1,328 @@
+import * as React from "react"
+import {
+  RiArrowLeftSLine,
+  RiArrowRightSLine,
+  RiFileList2Line,
+  RiForbid2Line,
+  RiRefreshLine,
+  RiShieldCheckLine,
+} from "@remixicon/react"
+import { Link, useSearchParams } from "react-router"
+
+import { AdminGate, AdminHeading } from "@/components/admin-gate"
+import { Badge } from "@/components/ui/badge"
+import { Button, buttonVariants } from "@/components/ui/button"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  setAdminPassword,
+  UnauthorizedError,
+  useAdminPassword,
+} from "@/lib/admin"
+import { errorMessage } from "@/lib/api"
+import { formatSavedAt } from "@/lib/reports"
+import {
+  browserLabel,
+  fetchUsage,
+  resetUsage,
+  setUsageRule,
+  USAGE_PAGE_SIZE,
+  usageKindLabel,
+  usageRuleLabel,
+  usageValueLabel,
+  type AdminUsage,
+  type AdminUsagePage,
+  type QuotaLimits,
+  type UsageRule,
+} from "@/lib/usage"
+
+/**
+ * 后台的用量页：按浏览器指纹与来源 IP 列出解读次数，可清零、拉黑或加白名单
+ *
+ * 页码放在查询参数里，换页以页码为 key 重建表格
+ */
+export function AdminUsagePage() {
+  const [params, setParams] = useSearchParams()
+  const page = Math.max(1, Math.floor(Number(params.get("page")) || 1))
+
+  return (
+    <AdminGate>
+      <UsageTable
+        key={page}
+        page={page}
+        onGoto={(next) => setParams(next > 1 ? { page: String(next) } : {})}
+      />
+    </AdminGate>
+  )
+}
+
+type State =
+  | { kind: "loading" }
+  | { kind: "ready"; page: AdminUsagePage }
+  | { kind: "failed"; message: string }
+
+interface UsageTableProps {
+  page: number
+  onGoto: (page: number) => void
+}
+
+function UsageTable({ page, onGoto }: UsageTableProps) {
+  const password = useAdminPassword()
+  const [state, setState] = React.useState<State>({ kind: "loading" })
+  const [busy, setBusy] = React.useState<string>()
+  const [error, setError] = React.useState<string>()
+
+  React.useEffect(() => {
+    let cancelled = false
+    fetchUsage(password, page)
+      .then((result) => {
+        if (!cancelled) setState({ kind: "ready", page: result })
+      })
+      .catch((e) => {
+        if (cancelled) return
+        if (e instanceof UnauthorizedError) setAdminPassword("")
+        else setState({ kind: "failed", message: errorMessage(e) })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [password, page])
+
+  // 改完就地换掉那一行，不重拉整页，免得排序跳动
+  const apply = async (key: string, action: () => Promise<AdminUsage>) => {
+    setBusy(key)
+    setError(undefined)
+    try {
+      const updated = await action()
+      setState((current) =>
+        current.kind === "ready"
+          ? {
+              kind: "ready",
+              page: {
+                ...current.page,
+                items: current.page.items.map((item) =>
+                  item.key === key ? updated : item
+                ),
+              },
+            }
+          : current
+      )
+    } catch (e) {
+      if (e instanceof UnauthorizedError) setAdminPassword("")
+      else setError(errorMessage(e))
+    } finally {
+      setBusy(undefined)
+    }
+  }
+
+  const total = state.kind === "ready" ? state.page.total : undefined
+  const pages =
+    total === undefined
+      ? undefined
+      : Math.max(1, Math.ceil(total / USAGE_PAGE_SIZE))
+
+  return (
+    <section className="flex flex-col gap-8">
+      <AdminHeading>
+        <Link
+          to="/admin"
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          <RiFileList2Line data-icon="inline-start" />
+          报告列表
+        </Link>
+      </AdminHeading>
+
+      {state.kind === "ready" && <QuotaSummary limits={state.page.limits} />}
+
+      {state.kind === "loading" && (
+        <p className="text-sm text-muted-foreground">加载中</p>
+      )}
+      {state.kind === "failed" && (
+        <p className="text-sm text-destructive">{state.message}</p>
+      )}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {state.kind === "ready" && state.page.items.length === 0 && (
+        <div className="border border-dashed border-border p-8">
+          <p className="text-sm text-muted-foreground">
+            {state.page.total === 0 ? "还没有解读记录" : "这一页没有内容"}
+          </p>
+        </div>
+      )}
+      {state.kind === "ready" && state.page.items.length > 0 && (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>主体</TableHead>
+              <TableHead>用量</TableHead>
+              <TableHead>最近一次</TableHead>
+              <TableHead>来源 IP</TableHead>
+              <TableHead>状态</TableHead>
+              <TableHead className="text-right">操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {state.page.items.map((item) => (
+              <UsageRow
+                key={item.key}
+                item={item}
+                limits={state.page.limits}
+                busy={busy === item.key}
+                onReset={() =>
+                  void apply(item.key, () => resetUsage(password, item.key))
+                }
+                onRule={(rule) =>
+                  void apply(item.key, () =>
+                    setUsageRule(password, item.key, rule)
+                  )
+                }
+              />
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      {pages !== undefined && pages > 1 && (
+        <div className="flex items-center justify-end gap-4 text-sm text-muted-foreground">
+          <span className="tabular-nums">
+            第 {page} / {pages} 页
+          </span>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            disabled={page <= 1}
+            aria-label="上一页"
+            onClick={() => onGoto(page - 1)}
+          >
+            <RiArrowLeftSLine />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            disabled={page >= pages}
+            aria-label="下一页"
+            onClick={() => onGoto(page + 1)}
+          >
+            <RiArrowRightSLine />
+          </Button>
+        </div>
+      )}
+    </section>
+  )
+}
+
+/** 生效中的额度，改环境变量重启后才变 */
+function QuotaSummary({ limits }: { limits: QuotaLimits }) {
+  const hours = Number.isInteger(limits.windowHours)
+    ? limits.windowHours
+    : limits.windowHours.toFixed(1)
+  const describe = (limit: number) => (limit > 0 ? `${limit} 次` : "不限")
+
+  return (
+    <p className="text-sm text-muted-foreground">
+      滚动 {hours} 小时内，单个浏览器 {describe(limits.client)}，单个 IP{" "}
+      {describe(limits.ip)}
+    </p>
+  )
+}
+
+interface UsageRowProps {
+  item: AdminUsage
+  limits: QuotaLimits
+  busy: boolean
+  onReset: () => void
+  onRule: (rule: UsageRule) => void
+}
+
+function UsageRow({ item, limits, busy, onReset, onRule }: UsageRowProps) {
+  const limit = item.kind === "ip" ? limits.ip : limits.client
+  const blocked = item.rule === "block"
+  const allowed = item.rule === "allow"
+  const exceeded = !allowed && limit > 0 && item.recent >= limit
+
+  return (
+    <TableRow>
+      <TableCell>
+        <span className="flex flex-col gap-1">
+          <span className="flex items-baseline gap-3">
+            <Badge variant="secondary">{usageKindLabel(item.kind)}</Badge>
+            <span className="font-mono text-xs" title={item.value}>
+              {usageValueLabel(item)}
+            </span>
+          </span>
+          {item.kind === "client" && (
+            <span
+              className="text-xs text-muted-foreground"
+              title={item.userAgent}
+            >
+              {browserLabel(item.userAgent)}
+            </span>
+          )}
+        </span>
+      </TableCell>
+      <TableCell className="tabular-nums">
+        <span className="flex flex-col gap-1">
+          <span className={exceeded ? "text-destructive" : undefined}>
+            {item.recent}
+            {limit > 0 && ` / ${limit}`}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            累计 {item.total}
+          </span>
+        </span>
+      </TableCell>
+      <TableCell className="text-muted-foreground tabular-nums">
+        {formatSavedAt(Date.parse(item.lastAt))}
+      </TableCell>
+      <TableCell className="text-muted-foreground tabular-nums">
+        {item.kind === "ip" ? "—" : (item.ip ?? "不详")}
+      </TableCell>
+      <TableCell>
+        <Badge variant={blocked ? "destructive" : "secondary"}>
+          {usageRuleLabel(item.rule)}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <span className="flex items-center justify-end gap-2">
+          <Button
+            variant="outline"
+            size="icon-sm"
+            disabled={busy || item.recent === 0}
+            aria-label="清零"
+            title="清掉窗口内的计数"
+            onClick={onReset}
+          >
+            <RiRefreshLine />
+          </Button>
+          <Button
+            variant={allowed ? "default" : "outline"}
+            size="icon-sm"
+            disabled={busy}
+            aria-label={allowed ? "取消不限次" : "设为不限次"}
+            title={allowed ? "取消不限次" : "设为不限次"}
+            onClick={() => onRule(allowed ? "" : "allow")}
+          >
+            <RiShieldCheckLine />
+          </Button>
+          <Button
+            variant={blocked ? "destructive" : "outline"}
+            size="icon-sm"
+            disabled={busy}
+            aria-label={blocked ? "取消拉黑" : "拉黑"}
+            title={blocked ? "取消拉黑" : "拉黑"}
+            onClick={() => onRule(blocked ? "" : "block")}
+          >
+            <RiForbid2Line />
+          </Button>
+        </span>
+      </TableCell>
+    </TableRow>
+  )
+}

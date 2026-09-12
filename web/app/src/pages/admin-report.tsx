@@ -17,6 +17,7 @@ import { errorMessage } from "@/lib/api"
 import { formatSavedAt } from "@/lib/reports"
 import { shareUrlOf } from "@/lib/share"
 import { isSystem, systemMetaOf } from "@/lib/system"
+import { browserLabel } from "@/lib/usage"
 
 /** 后台的报告详情：服务端信息、按保存的输入重新排的命盘与解读正文 */
 export function AdminReportPage() {
@@ -103,15 +104,33 @@ function ReportDetail({ id }: { id: string }) {
   )
 }
 
-/** 报告在服务端的信息：id、时间、模型与分享状态 */
+/** 报告在服务端的信息：id、时间、模型、来源客户端与分享状态 */
 function ReportMeta({ report }: { report: AdminReport }) {
   const share = report.share
+  const client = report.client
   const rows: Array<[string, React.ReactNode]> = [
     ["报告 id", <span className="font-mono text-xs">{report.id}</span>],
     ["体系", systemMetaOf(report.system).title],
     ["创建于", formatSavedAt(Date.parse(report.createdAt))],
     ["更新于", formatSavedAt(Date.parse(report.updatedAt))],
     ["模型", report.model || "未记录"],
+    ["来源 IP", client?.ip || "未记录"],
+    [
+      "浏览器",
+      client?.userAgent ? (
+        <span title={client.userAgent}>{browserLabel(client.userAgent)}</span>
+      ) : (
+        "未记录"
+      ),
+    ],
+    [
+      "指纹",
+      client?.fingerprint ? (
+        <span className="font-mono text-xs">{client.fingerprint}</span>
+      ) : (
+        "未记录"
+      ),
+    ],
     [
       "分享",
       share ? (

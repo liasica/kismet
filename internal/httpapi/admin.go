@@ -39,6 +39,8 @@ type adminReportSummary struct {
 	// AnalysisRunes 解读正文的字符数，0 即尚未解读
 	AnalysisRunes int        `json:"analysisRunes"`
 	Share         *shareInfo `json:"share,omitempty"`
+	// Client 最近一次写入这份报告的客户端，早期记录没有
+	Client *report.Client `json:"client,omitempty"`
 }
 
 // adminReport 单份报告的全部内容，选项按体系原样透传
@@ -63,6 +65,7 @@ func summaryOf(item report.Report) adminReportSummary {
 		Input:         item.Input,
 		Model:         item.Model,
 		AnalysisRunes: utf8.RuneCountInString(item.Analysis),
+		Client:        item.Client,
 	}
 	if item.Share != nil {
 		info := infoOf(*item.Share)

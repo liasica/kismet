@@ -15,6 +15,7 @@ import { ZiweiSessionProvider } from "@/components/ziwei-session"
 import { useReports } from "@/lib/reports"
 import { AdminReportPage } from "@/pages/admin-report"
 import { AdminReportsPage } from "@/pages/admin-reports"
+import { AdminUsagePage } from "@/pages/admin-usage"
 import { BaziPage } from "@/pages/bazi"
 import { BaziReportPage } from "@/pages/bazi-report"
 import { HomePage } from "@/pages/home"
@@ -101,6 +102,7 @@ export function App() {
               <Route path="/s/:hash" element={<SharedPage />} />
               <Route path="/admin" element={<AdminReportsPage />} />
               <Route path="/admin/reports/:id" element={<AdminReportPage />} />
+              <Route path="/admin/usage" element={<AdminUsagePage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </ErrorBoundary>

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/liasica/kismet/internal/bazi"
+	"github.com/liasica/kismet/internal/quota"
 	"github.com/liasica/kismet/internal/region"
 	"github.com/liasica/kismet/internal/report"
 	"github.com/liasica/kismet/internal/ziwei/knowledge"
@@ -22,11 +23,15 @@ type Server struct {
 	reports  *report.Store
 	// knowledge 紫微解读的讲义切片
 	knowledge *knowledge.Library
-	unlocks   *unlockLimiter
+	// quota 免费解读次数的配额
+	quota   *quota.Store
+	unlocks *unlockLimiter
 	// adminPassword 后台管理的密码，为空即不开放后台
 	adminPassword string
 	// adminLimiter 管理密码的错误计数
 	adminLimiter *unlockLimiter
+	// realIPHeader 反代放真实 IP 的头，启动时读一次
+	realIPHeader string
 	web          fs.FS
 }
 
@@ -36,6 +41,7 @@ func NewServer(
 	deepSeek DeepSeekConfig,
 	reports *report.Store,
 	lib *knowledge.Library,
+	usage *quota.Store,
 	adminPassword string,
 	web fs.FS,
 ) *Server {
@@ -44,9 +50,11 @@ func NewServer(
 		deepSeek:      deepSeek,
 		reports:       reports,
 		knowledge:     lib,
+		quota:         usage,
 		unlocks:       newUnlockLimiter(),
 		adminPassword: adminPassword,
 		adminLimiter:  newUnlockLimiter(),
+		realIPHeader:  realIPHeader(),
 		web:           web,
 	}
 }
@@ -91,7 +99,7 @@ func cors(next http.Handler) http.Handler {
 			w.Header().Set("Vary", "Origin")
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, "+fingerprintHeader)
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -121,6 +129,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/shares/{hash}/unlock", s.handleUnlock)
 	mux.HandleFunc("GET /api/admin/reports", s.requireAdmin(s.handleAdminReports))
 	mux.HandleFunc("GET /api/admin/reports/{id}", s.requireAdmin(s.handleAdminReport))
+	mux.HandleFunc("GET /api/admin/usage", s.requireAdmin(s.handleAdminUsage))
+	mux.HandleFunc("POST /api/admin/usage/reset", s.requireAdmin(s.handleAdminUsageReset))
+	mux.HandleFunc("POST /api/admin/usage/rule", s.requireAdmin(s.handleAdminUsageRule))
 	mux.HandleFunc("GET /api/regions/provinces", s.handleProvinces)
 	mux.HandleFunc("GET /api/regions/search", s.handleSearch)
 	mux.HandleFunc("GET /api/regions/{code}", s.handleRegion)

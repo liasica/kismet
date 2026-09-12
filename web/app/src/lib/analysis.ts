@@ -5,6 +5,7 @@
 import type { PaipanInput } from "@kismet/core"
 
 import { API_BASE, readError } from "@/lib/api"
+import { clientId } from "@/lib/client-id"
 import type { ReportOptions, System } from "@/lib/system"
 
 /** 解读请求：体系、报告 id、排盘输入与选项，服务端据此排盘并存成报告，解读结束后正文写回同一份 */
@@ -35,11 +36,17 @@ export async function streamAnalysis(
   signal: AbortSignal,
   onReasoning?: () => void
 ): Promise<void> {
+  // 指纹是免费次数的计数依据，取不到也照常请求，服务端退化成按 IP 计
+  const fingerprint = await clientId()
+
   let res: Response
   try {
     res = await fetch(`${API_BASE}/api/${record.system}/analyze`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(fingerprint ? { "X-Client-Id": fingerprint } : {}),
+      },
       body: JSON.stringify({
         reportId: record.reportId,
         input: record.input,

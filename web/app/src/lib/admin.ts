@@ -12,6 +12,14 @@ import { API_BASE, readError } from "@/lib/api"
 import type { ShareInfo } from "@/lib/share"
 import type { ReportOptions, System } from "@/lib/system"
 
+/** 写入这份报告的客户端，早期记录没有 */
+export interface ReportClient {
+  ip?: string
+  userAgent?: string
+  /** 浏览器指纹，客户端没给时没有 */
+  fingerprint?: string
+}
+
 /** 列表里的一条报告，不带解读正文 */
 export interface AdminReportSummary {
   id: string
@@ -24,6 +32,7 @@ export interface AdminReportSummary {
   /** 解读正文的字符数，0 即尚未解读 */
   analysisRunes: number
   share?: ShareInfo
+  client?: ReportClient
 }
 
 /** 单份报告的全部内容 */
@@ -89,26 +98,44 @@ export function isHeaderSafe(password: string): boolean {
 }
 
 /** 带管理密码请求后台接口，401 抛 `UnauthorizedError`，其余状态交给调用方 */
-async function adminFetch(path: string, password: string): Promise<Response> {
+async function adminFetch(
+  path: string,
+  password: string,
+  body?: unknown
+): Promise<Response> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { Authorization: `Bearer ${password}` },
+    method: body === undefined ? "GET" : "POST",
+    headers: {
+      Authorization: `Bearer ${password}`,
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (res.status === 401) throw new UnauthorizedError(await readError(res))
   return res
 }
 
+/** 请求后台接口并解析 JSON，非 2xx 抛错 */
+export async function adminJSON<T>(
+  path: string,
+  password: string,
+  body?: unknown
+): Promise<T> {
+  const res = await adminFetch(path, password, body)
+  if (!res.ok) throw new Error(await readError(res))
+  return (await res.json()) as T
+}
+
 /** 分页列出全部报告，最新创建的在前，`page` 从 1 起 */
-export async function fetchAdminReports(
+export function fetchAdminReports(
   password: string,
   page: number
 ): Promise<AdminReportPage> {
   const offset = (page - 1) * PAGE_SIZE
-  const res = await adminFetch(
+  return adminJSON<AdminReportPage>(
     `/api/admin/reports?offset=${offset}&limit=${PAGE_SIZE}`,
     password
   )
-  if (!res.ok) throw new Error(await readError(res))
-  return (await res.json()) as AdminReportPage
 }
 
 /** 单份报告的全部内容，不存在返回 `undefined` */

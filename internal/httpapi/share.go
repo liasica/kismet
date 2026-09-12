@@ -185,12 +185,14 @@ func (s *Server) handleCreateShare(w http.ResponseWriter, r *http.Request) {
 			writeError(w, err)
 			return
 		}
-		if err = s.reports.Upsert(
-			id,
-			system,
-			*req.Input,
-			options,
-		); err != nil {
+		client := s.clientOf(r)
+		if err = s.reports.Upsert(report.Draft{
+			ID:      id,
+			System:  system,
+			Input:   *req.Input,
+			Options: options,
+			Client:  &client,
+		}); err != nil {
 			writeError(w, err)
 			return
 		}

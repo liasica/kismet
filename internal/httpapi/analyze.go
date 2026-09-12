@@ -160,14 +160,22 @@ func (s *Server) serveAnalysis(w http.ResponseWriter, r *http.Request, parse ana
 		return
 	}
 
+	client := s.clientOf(r)
+	keys := quotaKeysOf(client)
+	if err = s.quota.Check(keys...); err != nil {
+		writeError(w, quotaError(err))
+		return
+	}
+
 	// 输入先存成报告，解读中途断开也留得下已生成的正文
 	if plan.reportID != "" {
-		if err = s.reports.Upsert(
-			plan.reportID,
-			plan.system,
-			plan.input,
-			plan.options,
-		); err != nil {
+		if err = s.reports.Upsert(report.Draft{
+			ID:      plan.reportID,
+			System:  plan.system,
+			Input:   plan.input,
+			Options: plan.options,
+			Client:  &client,
+		}); err != nil {
 			writeError(w, err)
 			return
 		}
@@ -179,6 +187,9 @@ func (s *Server) serveAnalysis(w http.ResponseWriter, r *http.Request, parse ana
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	// 上游已经开始生成就算消耗一次，中途断开不退
+	s.recordUsage(client, keys)
 
 	content := relayStream(w, resp.Body)
 	if plan.reportID == "" || content == "" {

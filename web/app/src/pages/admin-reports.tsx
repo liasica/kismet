@@ -3,12 +3,13 @@ import {
   RiArrowLeftSLine,
   RiArrowRightSLine,
   RiLogoutBoxRLine,
+  RiPulseLine,
 } from "@remixicon/react"
 import { Link, useNavigate, useSearchParams } from "react-router"
 
 import { AdminGate, AdminHeading } from "@/components/admin-gate"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Table,
   TableBody,
@@ -30,6 +31,7 @@ import { errorMessage } from "@/lib/api"
 import { formatSavedAt } from "@/lib/reports"
 import type { ShareInfo } from "@/lib/share"
 import { systemMetaOf } from "@/lib/system"
+import { browserLabel } from "@/lib/usage"
 
 /**
  * 后台首页：服务端保存的全部报告，按创建时间倒序分页，点一行进详情
@@ -103,6 +105,13 @@ function ReportTable({ page, onGoto }: ReportTableProps) {
           {total !== undefined && (
             <span className="text-sm text-muted-foreground">共 {total} 份</span>
           )}
+          <Link
+            to="/admin/usage"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <RiPulseLine data-icon="inline-start" />
+            用量
+          </Link>
           <Button
             variant="outline"
             size="sm"
@@ -136,6 +145,7 @@ function ReportTable({ page, onGoto }: ReportTableProps) {
               <TableHead>体系</TableHead>
               <TableHead>出生时刻</TableHead>
               <TableHead>出生地</TableHead>
+              <TableHead>来源</TableHead>
               <TableHead>解读</TableHead>
               <TableHead>分享</TableHead>
             </TableRow>
@@ -154,7 +164,7 @@ function ReportTable({ page, onGoto }: ReportTableProps) {
                   <span className="flex items-baseline gap-3">
                     <Link
                       to={detailPath(report.id, page)}
-                      className="font-heading hover:underline"
+                      className="block max-w-32 truncate font-heading hover:underline"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {report.input.name || "未具名"}
@@ -173,6 +183,21 @@ function ReportTable({ page, onGoto }: ReportTableProps) {
                 <TableCell className="text-muted-foreground">
                   <span className="block max-w-48 truncate">
                     {report.input.location || "不详"}
+                  </span>
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  <span className="flex flex-col gap-1">
+                    <span className="tabular-nums">
+                      {report.client?.ip || "不详"}
+                    </span>
+                    {report.client?.userAgent && (
+                      <span
+                        className="text-xs"
+                        title={report.client.userAgent}
+                      >
+                        {browserLabel(report.client.userAgent)}
+                      </span>
+                    )}
                   </span>
                 </TableCell>
                 <TableCell className="text-muted-foreground tabular-nums">

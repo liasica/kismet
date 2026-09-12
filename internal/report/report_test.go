@@ -28,7 +28,7 @@ func TestUpsertKeepsSystemAndRawOptions(t *testing.T) {
 	input := birth.Input{Year: 1990, Month: 5, Day: 3, Hour: 12, Minute: 30, Gender: birth.GenderMale}
 	options := json.RawMessage(`{"useTrueSolarTime":false,"useDaylightSaving":false,"lateZiAsNextDay":false,"maxAge":100}`)
 
-	if err := store.Upsert(reportID, SystemZiwei, input, options); err != nil {
+	if err := store.Upsert(Draft{ID: reportID, System: SystemZiwei, Input: input, Options: options}); err != nil {
 		t.Fatalf("写入失败：%v", err)
 	}
 	item, err := store.Get(reportID)
@@ -43,7 +43,12 @@ func TestUpsertKeepsSystemAndRawOptions(t *testing.T) {
 	if err = store.SaveAnalysis(reportID, "model-x", "正文"); err != nil {
 		t.Fatalf("写正文失败：%v", err)
 	}
-	if err = store.Upsert(reportID, SystemZiwei, input, json.RawMessage(`{"maxAge":80}`)); err != nil {
+	if err = store.Upsert(Draft{
+		ID:      reportID,
+		System:  SystemZiwei,
+		Input:   input,
+		Options: json.RawMessage(`{"maxAge":80}`),
+	}); err != nil {
 		t.Fatalf("二次写入失败：%v", err)
 	}
 	if item, err = store.Get(reportID); err != nil {

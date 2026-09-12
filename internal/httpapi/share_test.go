@@ -13,7 +13,7 @@ import (
 	"github.com/liasica/kismet/internal/ziwei"
 )
 
-// newShareTestServer 只测分享接口用，区划、知识库与后台密码都用不上
+// newShareTestServer 只测分享接口用，区划、知识库、配额与后台密码都用不上
 func newShareTestServer(t *testing.T) *Server {
 	t.Helper()
 	store, err := report.Open(filepath.Join(t.TempDir(), "share_test.db"))
@@ -21,7 +21,7 @@ func newShareTestServer(t *testing.T) *Server {
 		t.Fatalf("打开报告存储失败：%v", err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	return NewServer(nil, DeepSeekConfig{}, store, nil, "", nil)
+	return NewServer(nil, DeepSeekConfig{}, store, nil, nil, "", nil)
 }
 
 // TestCreateShareKeepsExistingSystemWhenOmitted 已存的紫微报告再收到一次不带 system 的分享请求，

@@ -8,16 +8,17 @@
 
 | 项 | 选型 | 说明 |
 | --- | --- | --- |
-| 服务 | Go 1.27，标准库 `net/http` | 静态资源、八字排盘接口、紫微排盘引擎、紫微解读的知识库检索、DeepSeek 转发、报告与分享 |
-| 存储 | bbolt | 单文件键值库，存解读报告与分享设置，路径由 `DB_PATH` 指定 |
+| 服务 | Go 1.27，标准库 `net/http` | 静态资源、八字排盘接口、紫微排盘引擎、紫微解读的知识库检索、DeepSeek 转发、报告与分享、免费次数的配额 |
+| 存储 | bbolt | 单文件键值库，存解读报告、分享设置与免费次数的用量，路径由 `DB_PATH` 指定 |
 | 构建 | Vite 8 + React 19 + TypeScript 6 | SPA，无 SSR |
-| 路由 | react-router 8 | 声明式 `BrowserRouter`，页面在 `web/app/src/pages/`：`/` 两张卡片各进一套体系、`/bazi` 表单、`/bazi/report` 排盘与解读、`/ziwei` 表单、`/ziwei/report` 排盘与解读、`/saved` 收藏、`/s/:hash` 分享页、`/admin` 后台的报告列表、`/admin/reports/:id` 后台的报告详情 |
+| 路由 | react-router 8 | 声明式 `BrowserRouter`，页面在 `web/app/src/pages/`：`/` 两张卡片各进一套体系、`/bazi` 表单、`/bazi/report` 排盘与解读、`/ziwei` 表单、`/ziwei/report` 排盘与解读、`/saved` 收藏、`/s/:hash` 分享页、`/admin` 后台的报告列表、`/admin/reports/:id` 后台的报告详情、`/admin/usage` 后台的免费次数用量 |
 | 样式 | Tailwind CSS v4 | CSS-first，无 `tailwind.config`，主题变量集中在 `web/app/src/index.css` |
 | 组件 | shadcn/ui，style `base-sera` | 配置见 `web/app/components.json` |
 | 组件基座 | `@base-ui/react` | 不是 Radix |
 | 图标 | `@remixicon/react` | 不是 lucide |
 | 日期 | react-day-picker 10 + date-fns 4 | 出生时间选择器的日历部分 |
 | Markdown | react-markdown + remark-gfm | 渲染 DeepSeek 的解读 |
+| 指纹 | @fingerprintjs/fingerprintjs 5 | 免费次数按它计，只在发起解读时动态载入，单独成一个 chunk |
 | 字体 | Oxanium、Raleway、思源宋体 | 拉丁与数字走 Oxanium（`--font-sans`，html 默认）与 Raleway（`--font-heading`），中文字形由思源宋体承担 |
 | 包管理 | pnpm，工作区在 `web/` | |
 
@@ -32,6 +33,7 @@ internal/ziwei/knowledge/  讲义切片的加载与按命盘检索
 internal/fixturetest/      黄金基准的加载与逐字段比对，八字与紫微共用
 internal/region/           行政区划查询，从 fs.FS 读数据
 internal/report/           解读报告的持久化与分享：bbolt 存储、分享哈希、密码派生
+internal/quota/            免费解读次数的配额：滚动窗口计数、白名单与拉黑，与报告共用数据文件
 internal/httpapi/          HTTP 接口：排盘、区划、DeepSeek 解读转发、报告分享、SPA 静态资源
 tools/ziweikb/             讲义抽取工具，依赖 pdftotext
 data/region/               行政区划 JSON，Go 与 TypeScript 读同一份
@@ -80,6 +82,10 @@ make fixtures   # 重新生成两套跨语言黄金基准并用 Go 侧比对
 | `DEEPSEEK_MODEL` | `deepseek-flash` | 模型名 |
 | `ALLOWED_ORIGINS` | 空 | 跨域来源，逗号分隔，未设置时放开 |
 | `ADMIN_PASSWORD` | 空 | 后台管理的密码，限 ASCII 可见字符；未设置时后台接口返回 503，`/admin` 不可用 |
+| `FREE_QUOTA_CLIENT` | `3` | 单个浏览器指纹在窗口内的免费解读次数，`0` 即这一层不限 |
+| `FREE_QUOTA_IP` | `20` | 单个 IP 在窗口内的免费解读次数，`0` 即这一层不限 |
+| `FREE_QUOTA_WINDOW` | `24h` | 配额的滚动窗口，Go 的时长写法 |
+| `REAL_IP_HEADER` | `X-Real-IP` | 反代放真实 IP 的头；留空取默认，填 `none` 即只认连接的对端地址 |
 | `VITE_API_BASE` | 空 | 前端构建时的接口地址，空即同源 |
 
 ## 部署
@@ -88,7 +94,7 @@ make fixtures   # 重新生成两套跨语言黄金基准并用 Go 侧比对
 
 服务器的部署目录放 `compose.yaml` 与 `.env`，两者都由工作流写入。`.env` 里的 `IMAGE_TAG` 是本次部署的 commit sha，回滚就是把它改回旧 sha 再 `docker compose up -d`。容器只监听 `127.0.0.1:36579`，TLS 与对外访问由宿主机的 nginx 反代承担。报告数据在命名卷 `kismet-data`（容器内 `/data`），换镜像不丢。
 
-主机、账号、部署路径、部署私钥与 DeepSeek 密钥都在仓库 secrets：`SSH_HOST`、`SSH_USER`、`DEPLOY_PATH`、`SSH_KEY`、`SSH_KNOWN_HOSTS`、`DEEPSEEK_API_KEY`、`ADMIN_PASSWORD`；`DEEPSEEK_BASE_URL` 与 `DEEPSEEK_MODEL` 是仓库 variables。
+主机、账号、部署路径、部署私钥与 DeepSeek 密钥都在仓库 secrets：`SSH_HOST`、`SSH_USER`、`DEPLOY_PATH`、`SSH_KEY`、`SSH_KNOWN_HOSTS`、`DEEPSEEK_API_KEY`、`ADMIN_PASSWORD`；`DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL` 与免费次数的 `FREE_QUOTA_CLIENT`、`FREE_QUOTA_IP` 是仓库 variables，后两个留空即取代码里的默认额度。
 
 ## 命理解读
 
@@ -98,7 +104,19 @@ make fixtures   # 重新生成两套跨语言黄金基准并用 Go 侧比对
 
 紫微接口 `POST /api/ziwei/analyze`，收同样的 `{"reportId", "input", "options"}`，`options` 是紫微选项，提示词在 `internal/httpapi/prompt_ziwei.go`：system 消息放中州派批命规则（先看父母宫田宅宫、命宫福德宫合看、以星系论、分清原局大限流年、按参考资料口径、不承认宿命），user 消息放命主信息、今天、虚岁、所处大限与当前下一流年、`<命盘>` 文字命盘加大限流曜与流年流曜 `</命盘>`、`<参考资料>` 按命盘从知识库选出的讲义切片（命宫星系、命宫正曜、生年大限流年四化、十二宫宫垣论、三方四正的辅佐煞对星，总量 45000 字以内）`</参考资料>`、章节清单：成人八节 3500 到 4500 字，未成年人六节 2600 到 3400 字。末节「建议」同样分「趋吉」「避坑」「近两年怎么做」三个三级标题，依据取宫位星系、四化与煞曜，颜色方位数字由五行局与命主身主、命宫正曜的五行属性推出。
 
-带 `reportId` 时服务端在转发前把排盘输入与选项存成报告，流结束（含客户端中途断开）后把已生成的正文写回同一份，`reportId` 由前端在提交表单时生成（128 位随机数的 32 位十六进制），持有 id 即可管理这份报告的分享。
+带 `reportId` 时服务端在转发前把排盘输入与选项存成报告，流结束（含客户端中途断开）后把已生成的正文写回同一份，`reportId` 由前端在提交表单时生成（128 位随机数的 32 位十六进制），持有 id 即可管理这份报告的分享。报告同时记下发起请求的客户端：真实 IP、UA 与浏览器指纹。
+
+## 免费次数
+
+解读接口按客户端限次，配额分两层，两道都过才转发给上游，额度耗尽返回 429、被拉黑返回 403，文案直接显示在报告页的解读区：
+
+- 浏览器指纹是主闸，额度小（`FREE_QUOTA_CLIENT`）。指纹由前端的 FingerprintJS 算出，请求头 `X-Client-Id` 带上，指纹库只在真要解读时动态载入；取不到指纹时这一层退化成整个 IP 当一个客户端
+- 来源 IP 是兜底阀，额度大（`FREE_QUOTA_IP`），挡的是同一出口下反复换无痕窗口的量，共享出口的正常用户撞不到
+- 窗口是滚动的（`FREE_QUOTA_WINDOW`），每次调用的时刻记在 bbolt 里，窗口外的在写入时裁掉；上游开始生成才算消耗一次，中途断开不退
+
+真实 IP 取自 `REAL_IP_HEADER` 指定的头（默认 `X-Real-IP`），没有这个头时退到 `X-Forwarded-For` 的最后一跳。转发头能被客户端伪造，所以只在连接的对端是回环或私有地址时才采信，否则一律用对端地址。
+
+宿主 nginx 用 realip 模块从 Cloudflare 的地址段还原 `$remote_addr`（`/etc/nginx/conf.d/cloudflare-realip.conf`，地址段来自 `https://www.cloudflare.com/ips-v4` 与 `ips-v6`），再写进 `X-Real-IP` 与 `X-Forwarded-For`。这两个头由 nginx 自己写入，客户端带来的同名头会被覆盖；`CF-Connecting-IP` 是原样透传的，绕过边缘直连源站就能伪造，因此不作为取值来源。
 
 ## 分享
 
@@ -112,8 +130,10 @@ make fixtures   # 重新生成两套跨语言黄金基准并用 Go 侧比对
 ## 后台管理
 
 - 密码是环境变量 `ADMIN_PASSWORD`，未设置时后台接口返回 503；前端 `/admin` 输入后放在 sessionStorage，关掉标签页即失效，每次请求以 `Authorization: Bearer <密码>` 携带，密码限 ASCII 可见字符
-- `GET /api/admin/reports?offset=&limit=` 按创建时间倒序分页列出全部报告，返回 `{"total", "reports": [{id, createdAt, updatedAt, system, input, model, analysisRunes, share}]}`，不带正文，`limit` 默认 50、最大 200；`GET /api/admin/reports/{id}` 返回单份报告的全部内容，比列表项多 `options` 与 `analysis`。密码缺失或不正确返回 401，连续输错 5 次冷却 30 秒，计数不按客户端区分
-- 前端 `/admin` 以表格列出报告（创建时间、姓名、体系、出生时刻、出生地、解读字数、分享状态），页码在查询参数 `page`，点一行进 `/admin/reports/:id`：先列出报告 id、体系、时间、模型与分享链接，再按体系与保存的输入在本地重新排盘并展示解读正文；分享页与后台详情共用 `web/app/src/components/report-view.tsx`。头部导航不放后台入口，直接访问路径
+- `GET /api/admin/reports?offset=&limit=` 按创建时间倒序分页列出全部报告，返回 `{"total", "reports": [{id, createdAt, updatedAt, system, input, model, analysisRunes, share, client}]}`，不带正文，`limit` 默认 50、最大 200；`GET /api/admin/reports/{id}` 返回单份报告的全部内容，比列表项多 `options` 与 `analysis`。密码缺失或不正确返回 401，连续输错 5 次冷却 30 秒，计数不按客户端区分
+- `GET /api/admin/usage?offset=&limit=` 按最近一次调用倒序分页列出各配额主体，返回 `{"total", "items": [{key, kind, value, recent, total, firstAt, lastAt, userAgent, ip, rule, note}]}` 与生效中的 `limits`，`limit` 默认 50、最大 200；`POST /api/admin/usage/reset` 收 `{"key"}` 清掉窗口内的计数，`POST /api/admin/usage/rule` 收 `{"key", "rule", "note"}` 设处置（`allow` 不限次、`block` 拉黑、空即按额度），两者都回写改动后的那一条。主体键形如 `client:<指纹>` 或 `ip:<地址>`
+- 前端 `/admin` 以表格列出报告（创建时间、姓名、体系、出生时刻、出生地、来源 IP 与浏览器、解读字数、分享状态），页码在查询参数 `page`，点一行进 `/admin/reports/:id`：先列出报告 id、体系、时间、模型、来源 IP、浏览器、指纹与分享链接，再按体系与保存的输入在本地重新排盘并展示解读正文；分享页与后台详情共用 `web/app/src/components/report-view.tsx`。头部导航不放后台入口，直接访问路径
+- `/admin/usage` 列出各浏览器与各 IP 的用量（主体、窗口内次数与额度、累计、最近一次、来源 IP、状态），每行可清零、设不限次或拉黑，改完就地换掉那一行不重拉整页；额度只能改环境变量，重启后生效
 
 ## 开发约定
 

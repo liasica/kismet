@@ -52,6 +52,14 @@ func (s Share) Locked() bool {
 	return len(s.Key) > 0
 }
 
+// Client 发起请求的客户端，早期记录没有
+type Client struct {
+	IP        string `json:"ip,omitempty"`
+	UserAgent string `json:"userAgent,omitempty"`
+	// Fingerprint 浏览器指纹，客户端没给时为空
+	Fingerprint string `json:"fingerprint,omitempty"`
+}
+
 // Report 一份报告：排盘输入、选项与解读正文
 type Report struct {
 	ID        string    `json:"id"`
@@ -67,6 +75,18 @@ type Report struct {
 	// Analysis 解读正文 Markdown，尚未解读时为空
 	Analysis string `json:"analysis"`
 	Share    *Share `json:"share,omitempty"`
+	// Client 最近一次写入这份报告的客户端
+	Client *Client `json:"client,omitempty"`
+}
+
+// Draft 新建或更新一份报告要写的内容
+type Draft struct {
+	ID      string
+	System  string
+	Input   birth.Input
+	Options json.RawMessage
+	// Client 为空时保留报告里已有的客户端
+	Client *Client
 }
 
 // Store bbolt 存储，单文件，进程内并发安全
@@ -74,14 +94,24 @@ type Store struct {
 	db *bolt.DB
 }
 
-// Open 打开数据文件，不存在则创建
+// Open 打开数据文件，不存在则创建；关闭这个存储即关闭数据文件
 func Open(path string) (*Store, error) {
 	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: time.Second})
 	if err != nil {
 		return nil, err
 	}
 
-	err = db.Update(func(tx *bolt.Tx) error {
+	store, err := New(db)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return store, nil
+}
+
+// New 在已打开的数据文件上建报告存储，数据文件由调用方关闭
+func New(db *bolt.DB) (*Store, error) {
+	err := db.Update(func(tx *bolt.Tx) error {
 		for _, name := range [][]byte{bucketReports, bucketShares} {
 			if _, createErr := tx.CreateBucketIfNotExists(name); createErr != nil {
 				return createErr
@@ -90,7 +120,6 @@ func Open(path string) (*Store, error) {
 		return nil
 	})
 	if err != nil {
-		_ = db.Close()
 		return nil, err
 	}
 	return &Store{db: db}, nil
@@ -110,19 +139,22 @@ func (s *Store) Get(id string) (found Report, err error) {
 }
 
 // Upsert 新建报告，或更新已有报告的体系、输入与选项；解读正文与分享设置保留
-func (s *Store) Upsert(id, system string, input birth.Input, options json.RawMessage) error {
+func (s *Store) Upsert(draft Draft) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		var item Report
-		err := readReport(tx, id, &item)
+		err := readReport(tx, draft.ID, &item)
 		if errors.Is(err, ErrNotFound) {
-			item = Report{ID: id, CreatedAt: time.Now()}
+			item = Report{ID: draft.ID, CreatedAt: time.Now()}
 		} else if err != nil {
 			return err
 		}
 
-		item.System = system
-		item.Input = input
-		item.Options = options
+		item.System = draft.System
+		item.Input = draft.Input
+		item.Options = draft.Options
+		if draft.Client != nil {
+			item.Client = draft.Client
+		}
 		return writeReport(tx, &item)
 	})
 }

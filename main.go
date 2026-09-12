@@ -16,7 +16,10 @@ import (
 	"strings"
 	"time"
 
+	bolt "go.etcd.io/bbolt"
+
 	"github.com/liasica/kismet/internal/httpapi"
+	"github.com/liasica/kismet/internal/quota"
 	"github.com/liasica/kismet/internal/region"
 	"github.com/liasica/kismet/internal/report"
 	"github.com/liasica/kismet/internal/ziwei/knowledge"
@@ -26,6 +29,8 @@ import (
 const (
 	readTimeout  = 10 * time.Second
 	writeTimeout = 30 * time.Second
+	// dbTimeout 打开数据文件时等待文件锁的时长
+	dbTimeout = time.Second
 )
 
 //go:embed data/region
@@ -52,9 +57,18 @@ func main() {
 		fail("定位前端产物失败 %v", err)
 	}
 
-	reports, err := report.Open(dbPath())
+	db, err := bolt.Open(dbPath(), 0o600, &bolt.Options{Timeout: dbTimeout})
 	if err != nil {
 		fail("打开数据文件失败 %v", err)
+	}
+	reports, err := report.New(db)
+	if err != nil {
+		fail("初始化报告存储失败 %v", err)
+	}
+	quotaConfig := quota.ConfigFromEnv()
+	usage, err := quota.New(db, quotaConfig)
+	if err != nil {
+		fail("初始化配额存储失败 %v", err)
 	}
 
 	knowledgeFS, err := fs.Sub(ziweiData, "data/ziwei")
@@ -77,6 +91,7 @@ func main() {
 		deepSeek,
 		reports,
 		lib,
+		usage,
 		admin,
 		webFS,
 	).Handler()
@@ -99,9 +114,10 @@ func main() {
 	} else {
 		_, _ = fmt.Fprintln(os.Stdout, "后台管理 未配置 ADMIN_PASSWORD，接口返回 503")
 	}
+	_, _ = fmt.Fprintf(os.Stdout, "免费解读 %s\n", quotaConfig.Describe())
 
 	err = server.ListenAndServe()
-	_ = reports.Close()
+	_ = db.Close()
 	fail("服务退出 %v", err)
 }
 
