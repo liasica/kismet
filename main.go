@@ -65,8 +65,7 @@ func main() {
 	if err != nil {
 		fail("初始化报告存储失败 %v", err)
 	}
-	quotaConfig := quota.ConfigFromEnv()
-	usage, err := quota.New(db, quotaConfig)
+	usage, err := quota.New(db)
 	if err != nil {
 		fail("初始化配额存储失败 %v", err)
 	}
@@ -114,7 +113,7 @@ func main() {
 	} else {
 		_, _ = fmt.Fprintln(os.Stdout, "后台管理 未配置 ADMIN_PASSWORD，接口返回 503")
 	}
-	_, _ = fmt.Fprintf(os.Stdout, "免费解读 %s\n", quotaConfig.Describe())
+	_, _ = fmt.Fprintf(os.Stdout, "免费解读 %s，额度在后台改\n", usage.Config().Describe())
 
 	err = server.ListenAndServe()
 	_ = db.Close()

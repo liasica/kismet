@@ -80,8 +80,6 @@ jobs:
           DEEPSEEK_BASE_URL: ${{ vars.DEEPSEEK_BASE_URL }}
           DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-          FREE_QUOTA_CLIENT: ${{ vars.FREE_QUOTA_CLIENT }}
-          FREE_QUOTA_IP: ${{ vars.FREE_QUOTA_IP }}
         run: |
           ssh "$SSH_USER@$SSH_HOST" "umask 077 && cat > '$DEPLOY_PATH/.env'" <<ENVFILE
           IMAGE_TAG=${{ github.sha }}
@@ -89,8 +87,6 @@ jobs:
           DEEPSEEK_BASE_URL=$DEEPSEEK_BASE_URL
           DEEPSEEK_MODEL=$DEEPSEEK_MODEL
           ADMIN_PASSWORD=$ADMIN_PASSWORD
-          FREE_QUOTA_CLIENT=$FREE_QUOTA_CLIENT
-          FREE_QUOTA_IP=$FREE_QUOTA_IP
           ENVFILE
 
       - name: Pull image and restart service

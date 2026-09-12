@@ -3,7 +3,8 @@
 // 解读要花上游的钱，按客户端限次。配额分两层：浏览器指纹是主闸，额度小，正常用户只会
 // 撞这一道；来源 IP 是兜底阀，额度大，挡的是同一出口下反复换无痕窗口的量，共享出口的
 // 正常用户撞不到。两道都过才放行。窗口是滚动的，每次调用的时刻都记下来，窗口外的在写入
-// 时裁掉。后台可以把某个主体设成白名单（不限次）或拉黑（一律拒），也可以清掉它的计数
+// 时裁掉。额度、窗口与黑白名单都由后台改，存在同一个数据文件里，改完立刻生效不必重启；
+// 每次调用的 tokens 用量按主体累计，后台据此看得到花销
 package quota
 
 import (
@@ -12,6 +13,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
@@ -42,8 +44,14 @@ const (
 	defaultWindow      = 24 * time.Hour
 )
 
-// bucketUsage 按主体键存用量与处置
-var bucketUsage = []byte("quota")
+// 存储桶：quota 按主体键存用量与处置，quotaconfig 存后台改过的额度
+var (
+	bucketUsage    = []byte("quota")
+	bucketSettings = []byte("quotaconfig")
+)
+
+// keyLimits 额度在设置桶里的键
+var keyLimits = []byte("limits")
 
 // ErrBlocked 主体被后台拉黑
 var ErrBlocked = errors.New("已被限制使用")
@@ -84,6 +92,31 @@ func IPKey(ip string) Key {
 	return Key{Kind: KindIP, Value: ip}
 }
 
+// Tokens 模型用量，按主体累计，不受窗口与清零影响
+//
+// 缓存命中与未命中是 DeepSeek 对输入的拆分，两者相加即输入；推理是输出里的思考部分
+type Tokens struct {
+	Prompt     int `json:"prompt"`
+	Completion int `json:"completion"`
+	Reasoning  int `json:"reasoning"`
+	CacheHit   int `json:"cacheHit"`
+	CacheMiss  int `json:"cacheMiss"`
+}
+
+// Add 累加一次调用的用量
+func (t *Tokens) Add(other Tokens) {
+	t.Prompt += other.Prompt
+	t.Completion += other.Completion
+	t.Reasoning += other.Reasoning
+	t.CacheHit += other.CacheHit
+	t.CacheMiss += other.CacheMiss
+}
+
+// Empty 一次调用没拿到任何用量
+func (t Tokens) Empty() bool {
+	return t == Tokens{}
+}
+
 // Usage 一个主体的用量与处置
 type Usage struct {
 	Key   string `json:"key"`
@@ -98,9 +131,10 @@ type Usage struct {
 	// UserAgent 最近一次调用的 UA
 	UserAgent string `json:"userAgent,omitempty"`
 	// IP 最近一次调用的来源 IP，IP 主体就是它自己
-	IP   string `json:"ip,omitempty"`
-	Rule string `json:"rule,omitempty"`
-	Note string `json:"note,omitempty"`
+	IP     string `json:"ip,omitempty"`
+	Tokens Tokens `json:"tokens"`
+	Rule   string `json:"rule,omitempty"`
+	Note   string `json:"note,omitempty"`
 }
 
 // Recent 窗口内的调用次数
@@ -126,15 +160,6 @@ type Entry struct {
 	IP        string
 }
 
-// Config 额度与窗口
-type Config struct {
-	// ClientLimit 单个浏览器指纹在窗口内的次数，0 即不限
-	ClientLimit int
-	// IPLimit 单个 IP 在窗口内的次数，0 即不限
-	IPLimit int
-	Window  time.Duration
-}
-
 // limitOf 某类主体的额度，0 即不限
 func (c Config) limitOf(kind string) int {
 	if kind == KindIP {
@@ -144,38 +169,77 @@ func (c Config) limitOf(kind string) int {
 }
 
 // Store 配额存储，与报告共用同一个数据文件
+//
+// 额度随后台改动写进数据文件并换掉内存里这一份，不重启即刻生效
 type Store struct {
 	db     *bolt.DB
+	mu     sync.RWMutex
 	config Config
 }
 
-// New 在已打开的数据文件上建配额存储
-func New(db *bolt.DB, config Config) (*Store, error) {
+// New 在已打开的数据文件上建配额存储，额度取后台存过的那份，没有就用默认额度
+func New(db *bolt.DB) (*Store, error) {
+	store := &Store{db: db, config: DefaultConfig}
 	err := db.Update(func(tx *bolt.Tx) error {
-		_, createErr := tx.CreateBucketIfNotExists(bucketUsage)
-		return createErr
+		for _, name := range [][]byte{bucketUsage, bucketSettings} {
+			if _, createErr := tx.CreateBucketIfNotExists(name); createErr != nil {
+				return createErr
+			}
+		}
+
+		raw := tx.Bucket(bucketSettings).Get(keyLimits)
+		if raw == nil {
+			return nil
+		}
+		return json.Unmarshal(raw, &store.config)
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &Store{db: db, config: config}, nil
+	return store, nil
 }
 
 // Config 当前的额度与窗口
 func (s *Store) Config() Config {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.config
+}
+
+// SetConfig 换掉额度与窗口，立刻对后续请求生效
+func (s *Store) SetConfig(config Config) error {
+	if err := config.Validate(); err != nil {
+		return err
+	}
+
+	raw, err := json.Marshal(config)
+	if err != nil {
+		return err
+	}
+	err = s.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(bucketSettings).Put(keyLimits, raw)
+	})
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	s.config = config
+	s.mu.Unlock()
+	return nil
 }
 
 // Check 逐层校验配额，被拉黑返回 ErrBlocked，额度耗尽返回 LimitError
 func (s *Store) Check(keys ...Key) error {
 	now := time.Now()
+	config := s.Config()
 	return s.db.View(func(tx *bolt.Tx) error {
 		for _, key := range keys {
 			usage, err := readUsage(tx, key.String())
 			if err != nil {
 				return err
 			}
-			if err = s.judge(usage, key.Kind, now); err != nil {
+			if err = judge(usage, key.Kind, config, now); err != nil {
 				return err
 			}
 		}
@@ -184,7 +248,7 @@ func (s *Store) Check(keys ...Key) error {
 }
 
 // judge 一个主体当下是否放行
-func (s *Store) judge(usage Usage, kind string, now time.Time) error {
+func judge(usage Usage, kind string, config Config, now time.Time) error {
 	switch usage.Rule {
 	case RuleBlock:
 		return ErrBlocked
@@ -192,25 +256,26 @@ func (s *Store) judge(usage Usage, kind string, now time.Time) error {
 		return nil
 	}
 
-	limit := s.config.limitOf(kind)
+	limit := config.limitOf(kind)
 	if limit <= 0 {
 		return nil
 	}
 
-	times := usage.within(now, s.config.Window)
+	times := usage.within(now, config.Window)
 	if len(times) < limit {
 		return nil
 	}
 	return LimitError{
 		Kind:       kind,
 		Limit:      limit,
-		RetryAfter: times[0].Add(s.config.Window).Sub(now),
+		RetryAfter: times[0].Add(config.Window).Sub(now),
 	}
 }
 
 // Record 记一次调用，白名单与拉黑的主体照记，后台据此看得到量
 func (s *Store) Record(entries ...Entry) error {
 	now := time.Now()
+	window := s.Config().Window
 	return s.db.Update(func(tx *bolt.Tx) error {
 		for _, entry := range entries {
 			key := entry.Key.String()
@@ -223,12 +288,38 @@ func (s *Store) Record(entries ...Entry) error {
 				usage.Key, usage.Kind, usage.Value = key, entry.Key.Kind, entry.Key.Value
 				usage.FirstAt = now
 			}
-			usage.Times = append(usage.within(now, s.config.Window), now)
+			usage.Times = append(usage.within(now, window), now)
 			usage.Total++
 			usage.LastAt = now
 			usage.UserAgent = entry.UserAgent
 			usage.IP = entry.IP
 
+			if err = writeUsage(tx, usage); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// AddTokens 把一次调用的模型用量累加到各主体上，流结束才知道用了多少，所以与 Record 分开
+func (s *Store) AddTokens(keys []Key, tokens Tokens) error {
+	if tokens.Empty() {
+		return nil
+	}
+
+	return s.db.Update(func(tx *bolt.Tx) error {
+		for _, key := range keys {
+			usage, err := readUsage(tx, key.String())
+			if err != nil {
+				return err
+			}
+			// 没有记录说明这次调用没被 Record 下来，用量无处可挂，跳过
+			if usage.Key == "" {
+				continue
+			}
+
+			usage.Tokens.Add(tokens)
 			if err = writeUsage(tx, usage); err != nil {
 				return err
 			}

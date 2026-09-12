@@ -82,9 +82,6 @@ make fixtures   # 重新生成两套跨语言黄金基准并用 Go 侧比对
 | `DEEPSEEK_MODEL` | `deepseek-flash` | 模型名 |
 | `ALLOWED_ORIGINS` | 空 | 跨域来源，逗号分隔，未设置时放开 |
 | `ADMIN_PASSWORD` | 空 | 后台管理的密码，限 ASCII 可见字符；未设置时后台接口返回 503，`/admin` 不可用 |
-| `FREE_QUOTA_CLIENT` | `3` | 单个浏览器指纹在窗口内的免费解读次数，`0` 即这一层不限 |
-| `FREE_QUOTA_IP` | `20` | 单个 IP 在窗口内的免费解读次数，`0` 即这一层不限 |
-| `FREE_QUOTA_WINDOW` | `24h` | 配额的滚动窗口，Go 的时长写法 |
 | `REAL_IP_HEADER` | `X-Real-IP` | 反代放真实 IP 的头；留空取默认，填 `none` 即只认连接的对端地址 |
 | `VITE_API_BASE` | 空 | 前端构建时的接口地址，空即同源 |
 
@@ -94,7 +91,7 @@ make fixtures   # 重新生成两套跨语言黄金基准并用 Go 侧比对
 
 服务器的部署目录放 `compose.yaml` 与 `.env`，两者都由工作流写入。`.env` 里的 `IMAGE_TAG` 是本次部署的 commit sha，回滚就是把它改回旧 sha 再 `docker compose up -d`。容器只监听 `127.0.0.1:36579`，TLS 与对外访问由宿主机的 nginx 反代承担。报告数据在命名卷 `kismet-data`（容器内 `/data`），换镜像不丢。
 
-主机、账号、部署路径、部署私钥与 DeepSeek 密钥都在仓库 secrets：`SSH_HOST`、`SSH_USER`、`DEPLOY_PATH`、`SSH_KEY`、`SSH_KNOWN_HOSTS`、`DEEPSEEK_API_KEY`、`ADMIN_PASSWORD`；`DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL` 与免费次数的 `FREE_QUOTA_CLIENT`、`FREE_QUOTA_IP` 是仓库 variables，后两个留空即取代码里的默认额度。
+主机、账号、部署路径、部署私钥与 DeepSeek 密钥都在仓库 secrets：`SSH_HOST`、`SSH_USER`、`DEPLOY_PATH`、`SSH_KEY`、`SSH_KNOWN_HOSTS`、`DEEPSEEK_API_KEY`、`ADMIN_PASSWORD`；`DEEPSEEK_BASE_URL` 与 `DEEPSEEK_MODEL` 是仓库 variables。
 
 ## 命理解读
 
@@ -110,9 +107,11 @@ make fixtures   # 重新生成两套跨语言黄金基准并用 Go 侧比对
 
 解读接口按客户端限次，配额分两层，两道都过才转发给上游，额度耗尽返回 429、被拉黑返回 403，文案直接显示在报告页的解读区：
 
-- 浏览器指纹是主闸，额度小（`FREE_QUOTA_CLIENT`）。指纹由前端的 FingerprintJS 算出，请求头 `X-Client-Id` 带上，指纹库只在真要解读时动态载入；取不到指纹时这一层退化成整个 IP 当一个客户端
-- 来源 IP 是兜底阀，额度大（`FREE_QUOTA_IP`），挡的是同一出口下反复换无痕窗口的量，共享出口的正常用户撞不到
-- 窗口是滚动的（`FREE_QUOTA_WINDOW`），每次调用的时刻记在 bbolt 里，窗口外的在写入时裁掉；上游开始生成才算消耗一次，中途断开不退
+- 浏览器指纹是主闸，额度小（默认 3 次）。指纹由前端的 FingerprintJS 算出，请求头 `X-Client-Id` 带上，指纹库只在真要解读时动态载入；取不到指纹时这一层退化成整个 IP 当一个客户端
+- 来源 IP 是兜底阀，额度大（默认 20 次），挡的是同一出口下反复换无痕窗口的量，共享出口的正常用户撞不到
+- 窗口是滚动的（默认 24 小时），每次调用的时刻记在 bbolt 里，窗口外的在写入时裁掉；上游开始生成才算消耗一次，中途断开不退
+
+额度、窗口与黑白名单都在后台改，存进数据文件，改完对后续请求立刻生效，不经环境变量也不必重启；数据文件里没存过就用代码里的默认额度。每次调用的 tokens 用量（输入、输出、缓存命中与未命中、思考）从上游流的最后一个片段取出，按主体累计，后台用量页与次数并列展示
 
 真实 IP 取自 `REAL_IP_HEADER` 指定的头（默认 `X-Real-IP`），没有这个头时退到 `X-Forwarded-For` 的最后一跳。转发头能被客户端伪造，所以只在连接的对端是回环或私有地址时才采信，否则一律用对端地址。
 
@@ -131,9 +130,10 @@ make fixtures   # 重新生成两套跨语言黄金基准并用 Go 侧比对
 
 - 密码是环境变量 `ADMIN_PASSWORD`，未设置时后台接口返回 503；前端 `/admin` 输入后放在 sessionStorage，关掉标签页即失效，每次请求以 `Authorization: Bearer <密码>` 携带，密码限 ASCII 可见字符
 - `GET /api/admin/reports?offset=&limit=` 按创建时间倒序分页列出全部报告，返回 `{"total", "reports": [{id, createdAt, updatedAt, system, input, model, analysisRunes, share, client}]}`，不带正文，`limit` 默认 50、最大 200；`GET /api/admin/reports/{id}` 返回单份报告的全部内容，比列表项多 `options` 与 `analysis`。密码缺失或不正确返回 401，连续输错 5 次冷却 30 秒，计数不按客户端区分
-- `GET /api/admin/usage?offset=&limit=` 按最近一次调用倒序分页列出各配额主体，返回 `{"total", "items": [{key, kind, value, recent, total, firstAt, lastAt, userAgent, ip, rule, note}]}` 与生效中的 `limits`，`limit` 默认 50、最大 200；`POST /api/admin/usage/reset` 收 `{"key"}` 清掉窗口内的计数，`POST /api/admin/usage/rule` 收 `{"key", "rule", "note"}` 设处置（`allow` 不限次、`block` 拉黑、空即按额度），两者都回写改动后的那一条。主体键形如 `client:<指纹>` 或 `ip:<地址>`
+- `GET /api/admin/usage?offset=&limit=` 按最近一次调用倒序分页列出各配额主体，返回 `{"total", "items": [{key, kind, value, recent, total, firstAt, lastAt, userAgent, ip, tokens, rule, note}]}` 与生效中的 `limits`，`limit` 默认 50、最大 200；`POST /api/admin/usage/reset` 收 `{"key"}` 清掉窗口内的计数，`POST /api/admin/usage/rule` 收 `{"key", "rule", "note"}` 设处置（`allow` 不限次、`block` 拉黑、空即按额度），两者都回写改动后的那一条。主体键形如 `client:<指纹>` 或 `ip:<地址>`
+- `POST /api/admin/quota` 收 `{"client", "ip", "windowHours"}` 改额度与窗口，返回改后的值；次数 0 到 100000、窗口 1 分钟到 30 天，越界返回 400
 - 前端 `/admin` 以表格列出报告（创建时间、姓名、体系、出生时刻、出生地、来源 IP 与浏览器、解读字数、分享状态），页码在查询参数 `page`，点一行进 `/admin/reports/:id`：先列出报告 id、体系、时间、模型、来源 IP、浏览器、指纹与分享链接，再按体系与保存的输入在本地重新排盘并展示解读正文；分享页与后台详情共用 `web/app/src/components/report-view.tsx`。头部导航不放后台入口，直接访问路径
-- `/admin/usage` 列出各浏览器与各 IP 的用量（主体、窗口内次数与额度、累计、最近一次、来源 IP、状态），每行可清零、设不限次或拉黑，改完就地换掉那一行不重拉整页；额度只能改环境变量，重启后生效
+- `/admin/usage` 顶部是额度与窗口的输入框，改完即存即生效；下面列出各浏览器与各 IP 的用量（主体、窗口内次数与额度、累计 tokens、最近一次、来源 IP、状态），每行可清零、设不限次或拉黑，改完就地换掉那一行不重拉整页
 
 ## 开发约定
 

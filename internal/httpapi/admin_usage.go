@@ -35,9 +35,11 @@ type adminUsage struct {
 	// UserAgent 最近一次调用的 UA
 	UserAgent string `json:"userAgent,omitempty"`
 	// IP 最近一次调用的来源 IP
-	IP   string `json:"ip,omitempty"`
-	Rule string `json:"rule,omitempty"`
-	Note string `json:"note,omitempty"`
+	IP string `json:"ip,omitempty"`
+	// Tokens 累计的模型用量
+	Tokens quota.Tokens `json:"tokens"`
+	Rule   string       `json:"rule,omitempty"`
+	Note   string       `json:"note,omitempty"`
 }
 
 // adminUsageList 用量列表：总数、当前页与生效中的额度
@@ -48,12 +50,20 @@ type adminUsageList struct {
 	Limits quotaLimits `json:"limits"`
 }
 
-// quotaLimits 生效中的额度与窗口
+// quotaLimits 生效中的额度与窗口，也是后台改额度的请求体
 type quotaLimits struct {
 	Client int `json:"client"`
 	IP     int `json:"ip"`
 	// WindowHours 滚动窗口的小时数
 	WindowHours float64 `json:"windowHours"`
+}
+
+func limitsOf(config quota.Config) quotaLimits {
+	return quotaLimits{
+		Client:      config.ClientLimit,
+		IP:          config.IPLimit,
+		WindowHours: config.Window.Hours(),
+	}
 }
 
 // usageKeyRequest 指定一个配额主体
@@ -79,6 +89,7 @@ func usageOf(item quota.Usage, window time.Duration) adminUsage {
 		LastAt:    item.LastAt,
 		UserAgent: item.UserAgent,
 		IP:        item.IP,
+		Tokens:    item.Tokens,
 		Rule:      item.Rule,
 		Note:      item.Note,
 	}
@@ -101,18 +112,39 @@ func (s *Server) handleAdminUsage(w http.ResponseWriter, r *http.Request) {
 
 	config := s.quota.Config()
 	list := adminUsageList{
-		Total: page.Total,
-		Items: make([]adminUsage, 0, len(page.Items)),
-		Limits: quotaLimits{
-			Client:      config.ClientLimit,
-			IP:          config.IPLimit,
-			WindowHours: config.Window.Hours(),
-		},
+		Total:  page.Total,
+		Items:  make([]adminUsage, 0, len(page.Items)),
+		Limits: limitsOf(config),
 	}
 	for _, item := range page.Items {
 		list.Items = append(list.Items, usageOf(item, config.Window))
 	}
 	writeJSON(w, http.StatusOK, list)
+}
+
+// handleAdminQuota 改额度与窗口，写进数据文件并立刻对后续请求生效
+func (s *Server) handleAdminQuota(w http.ResponseWriter, r *http.Request) {
+	var req quotaLimits
+	if err := decodeJSON(r, maxRequestBytes, &req); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	config := quota.Config{
+		ClientLimit: req.Client,
+		IPLimit:     req.IP,
+		Window:      time.Duration(req.WindowHours * float64(time.Hour)),
+	}
+	if err := config.Validate(); err != nil {
+		writeError(w, badRequest("%s", err.Error()))
+		return
+	}
+	if err := s.quota.SetConfig(config); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, limitsOf(s.quota.Config()))
 }
 
 // handleAdminUsageReset 清掉一个主体在窗口内的计数，累计次数与处置保留

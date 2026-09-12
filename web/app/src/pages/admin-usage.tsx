@@ -12,6 +12,8 @@ import { Link, useSearchParams } from "react-router"
 import { AdminGate, AdminHeading } from "@/components/admin-gate"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { Field, FieldLabel } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
 import {
   Table,
   TableBody,
@@ -30,8 +32,10 @@ import { formatSavedAt } from "@/lib/reports"
 import {
   browserLabel,
   fetchUsage,
+  formatTokens,
   resetUsage,
   setUsageRule,
+  updateQuota,
   USAGE_PAGE_SIZE,
   usageKindLabel,
   usageRuleLabel,
@@ -39,6 +43,7 @@ import {
   type AdminUsage,
   type AdminUsagePage,
   type QuotaLimits,
+  type Tokens,
   type UsageRule,
 } from "@/lib/usage"
 
@@ -139,7 +144,18 @@ function UsageTable({ page, onGoto }: UsageTableProps) {
         </Link>
       </AdminHeading>
 
-      {state.kind === "ready" && <QuotaSummary limits={state.page.limits} />}
+      {state.kind === "ready" && (
+        <QuotaEditor
+          limits={state.page.limits}
+          onSaved={(limits) =>
+            setState((current) =>
+              current.kind === "ready"
+                ? { kind: "ready", page: { ...current.page, limits } }
+                : current
+            )
+          }
+        />
+      )}
 
       {state.kind === "loading" && (
         <p className="text-sm text-muted-foreground">加载中</p>
@@ -162,6 +178,7 @@ function UsageTable({ page, onGoto }: UsageTableProps) {
             <TableRow>
               <TableHead>主体</TableHead>
               <TableHead>用量</TableHead>
+              <TableHead>tokens</TableHead>
               <TableHead>最近一次</TableHead>
               <TableHead>来源 IP</TableHead>
               <TableHead>状态</TableHead>
@@ -218,18 +235,126 @@ function UsageTable({ page, onGoto }: UsageTableProps) {
   )
 }
 
-/** 生效中的额度，改环境变量重启后才变 */
-function QuotaSummary({ limits }: { limits: QuotaLimits }) {
-  const hours = Number.isInteger(limits.windowHours)
-    ? limits.windowHours
-    : limits.windowHours.toFixed(1)
-  const describe = (limit: number) => (limit > 0 ? `${limit} 次` : "不限")
+/** 生效中的额度，就地改，存在服务端不必重启 */
+function QuotaEditor({
+  limits,
+  onSaved,
+}: {
+  limits: QuotaLimits
+  onSaved: (limits: QuotaLimits) => void
+}) {
+  const password = useAdminPassword()
+  const [draft, setDraft] = React.useState(() => draftOf(limits))
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState<string>()
+  const dirty =
+    draft.client !== String(limits.client) ||
+    draft.ip !== String(limits.ip) ||
+    draft.windowHours !== String(limits.windowHours)
+
+  const save = async () => {
+    setBusy(true)
+    setError(undefined)
+    try {
+      const saved = await updateQuota(password, {
+        client: Number(draft.client),
+        ip: Number(draft.ip),
+        windowHours: Number(draft.windowHours),
+      })
+      setDraft(draftOf(saved))
+      onSaved(saved)
+    } catch (e) {
+      if (e instanceof UnauthorizedError) setAdminPassword("")
+      else setError(errorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
-    <p className="text-sm text-muted-foreground">
-      滚动 {hours} 小时内，单个浏览器 {describe(limits.client)}，单个 IP{" "}
-      {describe(limits.ip)}
-    </p>
+    <div className="flex flex-col gap-3 border border-border p-5">
+      <div className="flex flex-wrap items-end gap-6">
+        <QuotaField
+          id="quota-client"
+          label="单个浏览器"
+          suffix="次"
+          value={draft.client}
+          onChange={(client) => setDraft({ ...draft, client })}
+        />
+        <QuotaField
+          id="quota-ip"
+          label="单个 IP"
+          suffix="次"
+          value={draft.ip}
+          onChange={(ip) => setDraft({ ...draft, ip })}
+        />
+        <QuotaField
+          id="quota-window"
+          label="滚动窗口"
+          suffix="小时"
+          value={draft.windowHours}
+          onChange={(windowHours) => setDraft({ ...draft, windowHours })}
+        />
+        <Button size="sm" disabled={!dirty || busy} onClick={() => void save()}>
+          保存
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        次数填 0 即这一层不限；改完对后续请求立刻生效
+      </p>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  )
+}
+
+function draftOf(limits: QuotaLimits) {
+  return {
+    client: String(limits.client),
+    ip: String(limits.ip),
+    windowHours: String(limits.windowHours),
+  }
+}
+
+interface QuotaFieldProps {
+  id: string
+  label: string
+  suffix: string
+  value: string
+  onChange: (value: string) => void
+}
+
+function QuotaField({ id, label, suffix, value, onChange }: QuotaFieldProps) {
+  return (
+    <Field className="w-40">
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <span className="flex items-center gap-2">
+        <Input
+          id={id}
+          inputMode="decimal"
+          className="min-w-0"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        <span className="shrink-0 text-sm text-muted-foreground">{suffix}</span>
+      </span>
+    </Field>
+  )
+}
+
+/** 累计的模型用量：输入与输出一行，缓存命中与思考一行 */
+function TokenCell({ tokens }: { tokens: Tokens }) {
+  if (tokens.prompt === 0 && tokens.completion === 0) return "—"
+
+  return (
+    <span className="flex flex-col gap-1">
+      <span>
+        入 {formatTokens(tokens.prompt)} · 出 {formatTokens(tokens.completion)}
+      </span>
+      <span className="text-xs">
+        命中 {formatTokens(tokens.cacheHit)}
+        {tokens.reasoning > 0 && ` · 思考 ${formatTokens(tokens.reasoning)}`}
+      </span>
+    </span>
   )
 }
 
@@ -277,6 +402,9 @@ function UsageRow({ item, limits, busy, onReset, onRule }: UsageRowProps) {
             累计 {item.total}
           </span>
         </span>
+      </TableCell>
+      <TableCell className="text-muted-foreground tabular-nums">
+        <TokenCell tokens={item.tokens} />
       </TableCell>
       <TableCell className="text-muted-foreground tabular-nums">
         {formatSavedAt(Date.parse(item.lastAt))}

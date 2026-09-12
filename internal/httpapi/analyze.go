@@ -15,6 +15,7 @@ import (
 
 	"github.com/liasica/kismet/internal/bazi"
 	"github.com/liasica/kismet/internal/birth"
+	"github.com/liasica/kismet/internal/quota"
 	"github.com/liasica/kismet/internal/report"
 	"github.com/liasica/kismet/internal/ziwei"
 )
@@ -119,12 +120,44 @@ type streamChunk struct {
 	Usage *streamUsage `json:"usage"`
 }
 
-// streamUsage 生成用量
+// streamUsage 一次生成的用量，只在最后一个片段里
+//
+// prompt_cache_hit_tokens 与 prompt_cache_miss_tokens 是 DeepSeek 对输入的拆分，
+// OpenAI 口径则放在 prompt_tokens_details.cached_tokens，两种都认
 type streamUsage struct {
-	CompletionTokens        int `json:"completion_tokens"`
+	PromptTokens          int `json:"prompt_tokens"`
+	CompletionTokens      int `json:"completion_tokens"`
+	PromptCacheHitTokens  int `json:"prompt_cache_hit_tokens"`
+	PromptCacheMissTokens int `json:"prompt_cache_miss_tokens"`
+	PromptTokensDetails   struct {
+		CachedTokens int `json:"cached_tokens"`
+	} `json:"prompt_tokens_details"`
 	CompletionTokensDetails struct {
 		ReasoningTokens int `json:"reasoning_tokens"`
 	} `json:"completion_tokens_details"`
+}
+
+// tokensOf 把上游的用量转成按主体累计的字段
+func tokensOf(usage *streamUsage) quota.Tokens {
+	if usage == nil {
+		return quota.Tokens{}
+	}
+
+	hit := usage.PromptCacheHitTokens
+	if hit == 0 {
+		hit = usage.PromptTokensDetails.CachedTokens
+	}
+	miss := usage.PromptCacheMissTokens
+	if miss == 0 {
+		miss = usage.PromptTokens - hit
+	}
+	return quota.Tokens{
+		Prompt:     usage.PromptTokens,
+		Completion: usage.CompletionTokens,
+		Reasoning:  usage.CompletionTokensDetails.ReasoningTokens,
+		CacheHit:   hit,
+		CacheMiss:  max(miss, 0),
+	}
 }
 
 // upstreamError DeepSeek 的错误响应体
@@ -191,7 +224,11 @@ func (s *Server) serveAnalysis(w http.ResponseWriter, r *http.Request, parse ana
 	// 上游已经开始生成就算消耗一次，中途断开不退
 	s.recordUsage(client, keys)
 
-	content := relayStream(w, resp.Body)
+	content, tokens := relayStream(w, resp.Body)
+	if err = s.quota.AddTokens(keys, tokens); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "累计模型用量失败 %v\n", err)
+	}
+
 	if plan.reportID == "" || content == "" {
 		return
 	}
@@ -323,10 +360,11 @@ func readUpstreamError(body io.Reader) string {
 	return text
 }
 
-// relayStream 把上游的 SSE 逐行写回并刷出，返回拼好的解读正文
+// relayStream 把上游的 SSE 逐行写回并刷出，返回拼好的解读正文与这次的模型用量
 //
-// 思考过程打到控制台；客户端断开时上游请求随上下文取消，断开前收到的正文照样返回
-func relayStream(w http.ResponseWriter, body io.Reader) string {
+// 思考过程打到控制台；客户端断开时上游请求随上下文取消，断开前收到的正文照样返回，
+// 用量只在最后一个片段里，没走到那一步就是零值
+func relayStream(w http.ResponseWriter, body io.Reader) (string, quota.Tokens) {
 	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Accel-Buffering", "no")
@@ -344,7 +382,7 @@ func relayStream(w http.ResponseWriter, body io.Reader) string {
 		if len(line) > 0 {
 			monitor.Feed(line)
 			if _, writeErr := w.Write(line); writeErr != nil {
-				return monitor.Content()
+				return monitor.Content(), monitor.tokens
 			}
 			_ = controller.Flush()
 		}
@@ -352,7 +390,7 @@ func relayStream(w http.ResponseWriter, body io.Reader) string {
 			if !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
 				_, _ = fmt.Fprintf(os.Stderr, "读取 DeepSeek 流中断 %v\n", err)
 			}
-			return monitor.Content()
+			return monitor.Content(), monitor.tokens
 		}
 	}
 }
@@ -363,6 +401,8 @@ type streamMonitor struct {
 	out     io.Writer
 	line    strings.Builder
 	content strings.Builder
+	// tokens 这次生成的用量，流走到最后一个片段才有
+	tokens quota.Tokens
 }
 
 // Feed 解析一行 SSE：思考片段按换行切开输出，正文一出现就把没换行的残余冲出并攒起正文
@@ -400,13 +440,22 @@ func (m *streamMonitor) Content() string {
 	return m.content.String()
 }
 
-// finish 输出结束原因与用量，被 max_tokens 截断时点明
+// finish 记下用量并输出结束原因，被 max_tokens 截断时点明
 func (m *streamMonitor) finish(reason string, usage *streamUsage) {
+	m.tokens = tokensOf(usage)
+
 	var b strings.Builder
 	_, _ = fmt.Fprintf(&b, "[解读] 结束 finish_reason=%s", reason)
 	if usage != nil {
-		reasoning := usage.CompletionTokensDetails.ReasoningTokens
-		_, _ = fmt.Fprintf(&b, " 思考 %d tokens 正文 %d tokens", reasoning, usage.CompletionTokens-reasoning)
+		tokens := m.tokens
+		_, _ = fmt.Fprintf(
+			&b,
+			" 输入 %d（命中 %d）思考 %d 正文 %d tokens",
+			tokens.Prompt,
+			tokens.CacheHit,
+			tokens.Reasoning,
+			tokens.Completion-tokens.Reasoning,
+		)
 	}
 	if reason == "length" {
 		b.WriteString("，生成达到 max_tokens 上限被截断")

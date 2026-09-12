@@ -10,6 +10,15 @@ export type UsageKind = "client" | "ip"
 /** 后台对一个主体的处置，空即按额度限次 */
 export type UsageRule = "" | "allow" | "block"
 
+/** 累计的模型用量，缓存命中与未命中相加即输入，推理是输出里的思考部分 */
+export interface Tokens {
+  prompt: number
+  completion: number
+  reasoning: number
+  cacheHit: number
+  cacheMiss: number
+}
+
 /** 一个配额主体的用量 */
 export interface AdminUsage {
   /** 存储里的键，形如 `client:xxxx` 或 `ip:1.2.3.4` */
@@ -26,15 +35,24 @@ export interface AdminUsage {
   userAgent?: string
   /** 最近一次调用的来源 IP */
   ip?: string
+  tokens: Tokens
   rule?: UsageRule
   note?: string
 }
 
-/** 生效中的额度，0 即该层不限次 */
+/** 生效中的额度，0 即该层不限次；也是改额度的请求体 */
 export interface QuotaLimits {
   client: number
   ip: number
   windowHours: number
+}
+
+/** 改额度与窗口，写进服务端的数据文件并立刻生效 */
+export function updateQuota(
+  password: string,
+  limits: QuotaLimits
+): Promise<QuotaLimits> {
+  return adminJSON<QuotaLimits>("/api/admin/quota", password, limits)
 }
 
 export interface AdminUsagePage {
@@ -78,6 +96,12 @@ export function setUsageRule(
     rule,
     note,
   })
+}
+
+/** tokens 数目的紧凑写法，上万折成 k */
+export function formatTokens(value: number): string {
+  if (value < 10000) return String(value)
+  return `${(value / 1000).toFixed(value < 1000000 ? 1 : 0)}k`
 }
 
 /** 主体类型的中文说法 */

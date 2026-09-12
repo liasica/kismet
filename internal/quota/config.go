@@ -1,21 +1,47 @@
 package quota
 
 import (
-	"os"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 )
 
-// ConfigFromEnv 读环境变量 FREE_QUOTA_CLIENT、FREE_QUOTA_IP、FREE_QUOTA_WINDOW
-//
-// 两个额度填 0 即该层不限次，窗口按 Go 的时长写法，如 `24h`、`30m`
-func ConfigFromEnv() Config {
-	return Config{
-		ClientLimit: envInt("FREE_QUOTA_CLIENT", defaultClientLimit),
-		IPLimit:     envInt("FREE_QUOTA_IP", defaultIPLimit),
-		Window:      envDuration("FREE_QUOTA_WINDOW", defaultWindow),
+// 后台改动额度时的取值范围
+const (
+	limitMax  = 100000
+	windowMin = time.Minute
+	windowMax = 30 * 24 * time.Hour
+)
+
+// DefaultConfig 后台没改过时的额度
+var DefaultConfig = Config{
+	ClientLimit: defaultClientLimit,
+	IPLimit:     defaultIPLimit,
+	Window:      defaultWindow,
+}
+
+// Config 额度与窗口，由后台改，存在数据文件里
+type Config struct {
+	// ClientLimit 单个浏览器指纹在窗口内的次数，0 即不限
+	ClientLimit int `json:"clientLimit"`
+	// IPLimit 单个 IP 在窗口内的次数，0 即不限
+	IPLimit int           `json:"ipLimit"`
+	Window  time.Duration `json:"window"`
+}
+
+// Validate 校验额度与窗口
+func (c Config) Validate() error {
+	if c.ClientLimit < 0 || c.ClientLimit > limitMax {
+		return fmt.Errorf("浏览器额度应在 0 到 %d 之间，收到 %d", limitMax, c.ClientLimit)
 	}
+	if c.IPLimit < 0 || c.IPLimit > limitMax {
+		return fmt.Errorf("IP 额度应在 0 到 %d 之间，收到 %d", limitMax, c.IPLimit)
+	}
+	if c.Window < windowMin || c.Window > windowMax {
+		return fmt.Errorf("窗口应在 %v 到 %v 之间，收到 %v", windowMin, windowMax, c.Window)
+	}
+	return nil
 }
 
 // Describe 启动时打印的一行说明
@@ -32,32 +58,4 @@ func (c Config) Describe() string {
 		parts = append(parts, strconv.Itoa(c.IPLimit)+" 次/IP")
 	}
 	return strings.Join(parts, "，") + "，窗口 " + c.Window.String()
-}
-
-// envInt 读一个非负整数，缺失或不合法时用默认值
-func envInt(name string, fallback int) int {
-	raw := strings.TrimSpace(os.Getenv(name))
-	if raw == "" {
-		return fallback
-	}
-
-	value, err := strconv.Atoi(raw)
-	if err != nil || value < 0 {
-		return fallback
-	}
-	return value
-}
-
-// envDuration 读一个正时长，缺失或不合法时用默认值
-func envDuration(name string, fallback time.Duration) time.Duration {
-	raw := strings.TrimSpace(os.Getenv(name))
-	if raw == "" {
-		return fallback
-	}
-
-	value, err := time.ParseDuration(raw)
-	if err != nil || value <= 0 {
-		return fallback
-	}
-	return value
 }

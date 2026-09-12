@@ -130,6 +130,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/admin/reports", s.requireAdmin(s.handleAdminReports))
 	mux.HandleFunc("GET /api/admin/reports/{id}", s.requireAdmin(s.handleAdminReport))
 	mux.HandleFunc("GET /api/admin/usage", s.requireAdmin(s.handleAdminUsage))
+	mux.HandleFunc("POST /api/admin/quota", s.requireAdmin(s.handleAdminQuota))
 	mux.HandleFunc("POST /api/admin/usage/reset", s.requireAdmin(s.handleAdminUsageReset))
 	mux.HandleFunc("POST /api/admin/usage/rule", s.requireAdmin(s.handleAdminUsageRule))
 	mux.HandleFunc("GET /api/regions/provinces", s.handleProvinces)
