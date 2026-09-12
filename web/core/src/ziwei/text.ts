@@ -25,35 +25,47 @@ function majorText(chart: ZiweiChart, palace: ZiweiPalace): string {
   return `无，借对宫${opposite.branch}：${starsText(opposite.majorStars)}`
 }
 
-export function ziweiToText(chart: ZiweiChart): string {
+export interface ZiweiToTextOptions {
+  /** 列出出生时刻与出生地，默认列出 */
+  birth?: boolean
+}
+
+export function ziweiToText(
+  chart: ZiweiChart,
+  options: ZiweiToTextOptions = {}
+): string {
+  const { birth = true } = options
   const lines: string[] = []
   const genderText = chart.gender === "male" ? "乾造" : "坤造"
   lines.push(`${chart.name || "未具名"}  ${genderText}  紫微斗数`)
-  lines.push(`阳历：${chart.time.input}`)
-  if (chart.time.standard !== chart.time.input) {
-    lines.push(
-      `标准时：${chart.time.standard}（夏令时回拨 ${-chart.time.daylightSavingMinutes} 分钟）`
-    )
-  }
-  if (chart.options.useTrueSolarTime) {
-    lines.push(
-      `真太阳时：${chart.time.effective}` +
-        `（经度差 ${chart.time.longitudeMinutes} 分，均时差 ${chart.time.equationOfTimeMinutes} 分）`
-    )
-  }
-
   const lunar = chart.lunar
-  lines.push(
-    `农历：${lunar.text} ${lunar.hourBranch}时  属${chart.time.zodiac}`
-  )
-  if (lunar.leap) {
+  if (birth) {
+    lines.push(`阳历：${chart.time.input}`)
+    if (chart.time.standard !== chart.time.input) {
+      lines.push(
+        `标准时：${chart.time.standard}（夏令时回拨 ${-chart.time.daylightSavingMinutes} 分钟）`
+      )
+    }
+    if (chart.options.useTrueSolarTime) {
+      lines.push(
+        `真太阳时：${chart.time.effective}` +
+          `（经度差 ${chart.time.longitudeMinutes} 分，均时差 ${chart.time.equationOfTimeMinutes} 分）`
+      )
+    }
+    lines.push(
+      `农历：${lunar.text} ${lunar.hourBranch}时  属${chart.time.zodiac}`
+    )
+  } else {
+    lines.push(`时辰：${lunar.hourBranch}时`)
+  }
+  if (birth && lunar.leap) {
     lines.push(
       lunar.day > 15
         ? `闰月：闰${lunar.month}月十六起按${lunar.effectiveMonth}月安星`
         : `闰月：闰${lunar.month}月十五以前按本月安星`
     )
   }
-  if (chart.location?.name) {
+  if (birth && chart.location?.name) {
     const lng = chart.location.longitude
     lines.push(
       `出生地：${chart.location.name}${lng === undefined ? "" : `  东经 ${lng}`}`

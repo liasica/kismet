@@ -285,7 +285,7 @@
 
   /* DeepSeek 解读的 Markdown 正文 */
   .markdown {
-    @apply flex max-w-3xl flex-col gap-4 text-base leading-relaxed;
+    @apply flex flex-col gap-4 text-base leading-relaxed;
   }
   .markdown h1,
   .markdown h2,

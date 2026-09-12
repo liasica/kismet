@@ -40,11 +40,13 @@ function row(
 }
 
 export interface BaziToTextOptions {
+  /** 列出出生时刻、农历日期、出生地与起运时刻，默认列出 */
+  birth?: boolean
   /** 列出大运，默认列出 */
   decades?: boolean
   /** 列出流年，默认不列，100 岁会有上百行 */
   years?: boolean
-  /** 列出流月，默认不列 */
+  /** 列出出生当年的流月，默认不列，`birth` 为假时也不列 */
   months?: boolean
   /** 列出五行得分明细，默认不列 */
   elementDetail?: boolean
@@ -55,6 +57,7 @@ export function baziToText(
   options: BaziToTextOptions = {}
 ): string {
   const {
+    birth = true,
     decades = true,
     years = false,
     months = false,
@@ -66,28 +69,30 @@ export function baziToText(
   // 头部
   const genderText = chart.gender === "male" ? "乾造" : "坤造"
   lines.push(`${chart.name || "未具名"}  ${genderText}`)
-  lines.push(`阳历：${chart.time.input}`)
-  if (chart.time.standard !== chart.time.input) {
+  if (birth) {
+    lines.push(`阳历：${chart.time.input}`)
+    if (chart.time.standard !== chart.time.input) {
+      lines.push(
+        `标准时：${chart.time.standard}（夏令时回拨 ${-chart.time.daylightSavingMinutes} 分钟）`
+      )
+    }
+    if (chart.options.useTrueSolarTime) {
+      lines.push(
+        `真太阳时：${chart.time.effective}` +
+          `（经度差 ${chart.time.longitudeMinutes} 分，均时差 ${chart.time.equationOfTimeMinutes} 分）`
+      )
+    }
+    lines.push(`阴历：${chart.time.lunar}  属${chart.time.zodiac}`)
+    if (chart.location?.name) {
+      const lng = chart.location.longitude
+      lines.push(
+        `出生地：${chart.location.name}${lng === undefined ? "" : `  东经 ${lng}`}`
+      )
+    }
     lines.push(
-      `标准时：${chart.time.standard}（夏令时回拨 ${-chart.time.daylightSavingMinutes} 分钟）`
+      `节气：${chart.time.prevJie.name} ${chart.time.prevJie.time} 起，下一节 ${chart.time.nextJie.name} ${chart.time.nextJie.time}`
     )
   }
-  if (chart.options.useTrueSolarTime) {
-    lines.push(
-      `真太阳时：${chart.time.effective}` +
-        `（经度差 ${chart.time.longitudeMinutes} 分，均时差 ${chart.time.equationOfTimeMinutes} 分）`
-    )
-  }
-  lines.push(`阴历：${chart.time.lunar}  属${chart.time.zodiac}`)
-  if (chart.location?.name) {
-    const lng = chart.location.longitude
-    lines.push(
-      `出生地：${chart.location.name}${lng === undefined ? "" : `  东经 ${lng}`}`
-    )
-  }
-  lines.push(
-    `节气：${chart.time.prevJie.name} ${chart.time.prevJie.time} 起，下一节 ${chart.time.nextJie.name} ${chart.time.nextJie.time}`
-  )
   lines.push("")
 
   // 四柱表
@@ -194,7 +199,9 @@ export function baziToText(
   const q = chart.qiYun
   lines.push(`${q.forward ? "顺排" : "逆排"}  ${q.text}`)
   lines.push(
-    `起运时刻 ${q.startTime}  起运虚岁 ${q.startAge}  折算依据 ${q.term.name} ${q.term.time}`
+    birth
+      ? `起运时刻 ${q.startTime}  起运虚岁 ${q.startAge}  折算依据 ${q.term.name} ${q.term.time}`
+      : `起运虚岁 ${q.startAge}`
   )
   if (decades) {
     lines.push("")
@@ -215,7 +222,7 @@ export function baziToText(
     }
   }
 
-  if (months) {
+  if (months && birth) {
     lines.push("")
     lines.push("流月：")
     for (const m of chart.months) {

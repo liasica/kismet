@@ -8,15 +8,27 @@
 
 import { encode } from "uqr"
 
-import { ELEMENT_KEY_ORDER, ELEMENT_NAMES, PILLAR_LABELS } from "@kismet/core"
+import {
+  baziMonthsOfYear,
+  ELEMENT_KEY_ORDER,
+  ELEMENT_NAMES,
+  groupShenShaByPillar,
+  PILLAR_LABELS,
+  shortTenStar,
+  ziweiLimitAt,
+  ziweiYearly,
+} from "@kismet/core"
 import type {
   BaziChart,
+  DecadeFortuneStep,
   FiveElement,
   PillarKind,
   ZiweiChart,
+  ZiweiLimit,
   ZiweiMutation,
   ZiweiPalace,
   ZiweiStar,
+  ZiweiYear,
 } from "@kismet/core"
 import { SYSTEMS } from "@/lib/system"
 
@@ -57,6 +69,7 @@ interface Palette {
   mutedForeground: string
   border: string
   destructive: string
+  primary: string
   element: Record<FiveElement, string>
 }
 
@@ -70,6 +83,7 @@ function readPalette(): Palette {
     mutedForeground: read("--muted-foreground"),
     border: read("--border"),
     destructive: read("--destructive"),
+    primary: read("--primary"),
     element: {
       木: read("--wood"),
       火: read("--fire"),
@@ -437,13 +451,9 @@ function textOf(
   const { chart } = subject
   const common = [
     "FOUR PILLARS PURPLE STAR KISMET 遇见 未具名 乾造 坤造",
-    "阳历 农历 属 真太阳时 经度差 均时差 分 出生地 东经 命理解读 扫码查看完整命盘与解读",
+    "命理解读 扫码查看完整命盘与解读",
     "0123456789.-:（），……",
     chart.name,
-    chart.time.input,
-    chart.time.zodiac,
-    chart.time.effective,
-    chart.location?.name,
     analysis,
     shareUrl,
   ]
@@ -451,8 +461,7 @@ function textOf(
     const c = subject.chart
     return [
       ...common,
-      "阳男 阴男 阳女 阴女 大限顺行 逆行 命宫 身宫 命主 身主 生年四化 借对宫 身 庙旺地平闲陷 禄权科忌化",
-      c.lunar.text,
+      "阳男 阴男 阳女 阴女 时 大限顺行 逆行 命宫 身宫 小限 命主 身主 生年四化 借对宫 身 庙旺地平闲陷 禄权科忌化 岁 尚未起限",
       c.lunar.hourBranch,
       c.bureau.name,
       c.lifeMaster,
@@ -466,26 +475,43 @@ function textOf(
           (s) => s.name
         ),
       ]),
+      ...ziweiLimitYears(c).flatMap((y) => [y.sixtyCycle, y.lifePalace]),
     ].join("")
   }
   if (subject.system === "bazi") {
     const pillars = KINDS.map((k) => subject.chart.pillars[k])
+    const decade = currentDecade(subject.chart)
     return [
       ...common,
-      "元男 元女 日主 同类 异类 合计 胎元 胎息 命宫 身宫",
-      subject.chart.time.lunar,
+      "元男 元女 日主 同类 异类 合计 胎元 胎息 命宫 身宫 主星 干支 藏干 星运 自坐 空亡 纳音 神煞",
+      "大运 流月 岁 顺排 逆排 起运虚岁 小运 以节为界",
       ...Object.values(PILLAR_LABELS),
       ...pillars.flatMap((p) => [
         p.stem,
         p.branch,
         p.stemTenStar,
         p.sound,
+        p.terrain,
+        p.selfTerrain,
+        p.extraBranches.join(""),
         ...p.hideStems.flatMap((h) => [h.stem, h.tenStar]),
       ]),
+      ...subject.chart.shenSha.map((s) => s.name),
       ...Object.values(ELEMENT_NAMES),
       ...Object.values(subject.chart.elements.seasonalState),
       subject.chart.elements.strength,
       ...Object.values(subject.chart.extras),
+      ...(decade
+        ? decade.years.flatMap((y) => [
+            y.sixtyCycle,
+            shortTenStar(y.stemTenStar),
+            shortTenStar(y.branchTenStar),
+            y.minorFortune,
+          ])
+        : []),
+      ...baziMonthsOfYear(subject.chart, new Date().getFullYear()).flatMap(
+        (m) => [m.sixtyCycle, m.termName]
+      ),
     ].join("")
   }
   return common.join("")
@@ -503,7 +529,7 @@ async function loadFonts(text: string) {
   await Promise.all(fonts.map((font) => document.fonts.load(font, text)))
 }
 
-/** 眉题、姓名、乾坤造与出生信息 */
+/** 眉题、姓名与乾坤造；分享出去的图不带出生时刻、农历日期与出生地 */
 function drawHeader(p: Painter, subject: PosterSubject) {
   const { palette } = p
   const { chart } = subject
@@ -530,42 +556,26 @@ function drawHeader(p: Painter, subject: PosterSubject) {
   p.rect(badgeX, p.y + 7, p.width(gender) + 16, 22, palette.muted)
   p.text(gender, badgeX + 8, p.y + 18, palette.foreground)
   p.spacing("0px")
-  p.y += 54
-
-  const t = chart.time
-  const lunar =
-    subject.system === "ziwei"
-      ? `${subject.chart.lunar.text} ${subject.chart.lunar.hourBranch}时`
-      : t.lunar
-  const lines = [`阳历 ${t.input}    ${lunar} 属${t.zodiac}`]
-  if (chart.options.useTrueSolarTime) {
-    lines.push(
-      `真太阳时 ${t.effective}（经度差 ${t.longitudeMinutes} 分，均时差 ${t.equationOfTimeMinutes} 分）`
-    )
-  }
-  if (chart.location?.name) {
-    const lng =
-      chart.location.longitude === undefined
-        ? ""
-        : `，东经 ${chart.location.longitude}`
-    lines.push(`出生地 ${chart.location.name}${lng}`)
-  }
-  p.font(14, SANS)
-  for (const line of lines) {
-    p.text(line, PADDING, p.y + 10, palette.mutedForeground)
-    p.y += 24
-  }
-  p.y -= 4
+  p.y += 50
 }
 
-/** 四柱：柱名、主星、大字干支、藏干十神与纳音 */
+/** 四柱主表：行标在左，四柱各一列，与页面的基本盘同样的行 */
 function drawPillars(p: Painter, chart: BaziChart) {
   const { palette } = p
-  const column = CONTENT / 4
-  const centerOf = (i: number) => PADDING + column * i + column / 2
+  const labelWidth = 40
+  const column = (CONTENT - labelWidth) / 4
+  const centerOf = (i: number) => PADDING + labelWidth + column * i + column / 2
+  const grouped = groupShenShaByPillar(chart.shenSha)
   const maxHide = Math.max(
     ...KINDS.map((k) => chart.pillars[k].hideStems.length)
   )
+  const maxShenSha = Math.max(...KINDS.map((k) => grouped[k].length))
+
+  /** 行标，y 是本行文字的竖直中线 */
+  const label = (content: string, y: number) => {
+    p.font(11, SANS)
+    p.text(content, PADDING, y, palette.mutedForeground)
+  }
 
   p.font(11, SANS, 600)
   p.spacing("0.15em")
@@ -579,8 +589,11 @@ function drawPillars(p: Painter, chart: BaziChart) {
     )
   })
   p.spacing("0px")
-  p.y += 30
+  p.y += 20
+  p.rule()
+  p.y += 10
 
+  label("主星", p.y + 8)
   p.font(13, SANS)
   KINDS.forEach((k, i) => {
     const star =
@@ -593,6 +606,7 @@ function drawPillars(p: Painter, chart: BaziChart) {
   })
   p.y += 30
 
+  label("干支", p.y + 94)
   p.font(84, SERIF)
   KINDS.forEach((k, i) => {
     const pillar = chart.pillars[k]
@@ -613,8 +627,9 @@ function drawPillars(p: Painter, chart: BaziChart) {
   })
   p.y += 200
 
-  p.font(13, SANS)
   for (let row = 0; row < maxHide; row++) {
+    if (row === 0) label("藏干", p.y + 8)
+    p.font(13, SANS)
     KINDS.forEach((k, i) => {
       const hide = chart.pillars[k].hideStems[row]
       if (!hide) return
@@ -630,17 +645,32 @@ function drawPillars(p: Painter, chart: BaziChart) {
     p.y += 22
   }
 
-  p.font(12, SANS)
-  KINDS.forEach((k, i) => {
-    p.text(
-      chart.pillars[k].sound,
-      centerOf(i),
-      p.y + 8,
-      palette.mutedForeground,
-      "center"
-    )
-  })
-  p.y += 16
+  const rows: ReadonlyArray<readonly [string, (k: PillarKind) => string]> = [
+    ["星运", (k) => chart.pillars[k].terrain],
+    ["自坐", (k) => chart.pillars[k].selfTerrain],
+    ["空亡", (k) => chart.pillars[k].extraBranches.join("")],
+    ["纳音", (k) => chart.pillars[k].sound],
+  ]
+  for (const [name, valueOf] of rows) {
+    label(name, p.y + 8)
+    p.font(12, SANS)
+    KINDS.forEach((k, i) => {
+      p.text(valueOf(k), centerOf(i), p.y + 8, palette.foreground, "center")
+    })
+    p.y += 22
+  }
+
+  for (let row = 0; row < maxShenSha; row++) {
+    if (row === 0) label("神煞", p.y + 8)
+    p.font(11, SANS)
+    KINDS.forEach((k, i) => {
+      const hit = grouped[k][row]
+      if (!hit) return
+      p.text(hit.name, centerOf(i), p.y + 8, palette.mutedForeground, "center")
+    })
+    p.y += 20
+  }
+  p.y -= 4
 }
 
 /** 左栏五行得分条，右栏日主强弱与胎元、胎息、命宫、身宫 */
@@ -726,9 +756,121 @@ function drawElements(p: Painter, chart: BaziChart) {
   p.y = top + 5 * 26
 }
 
-/** 十二宫格的尺寸：四列等宽，四行等高，中央四格合并 */
+/** 运限格：头一行干支，下面几行小字 */
+interface Chip {
+  title: string
+  lines: string[]
+  /** 今年所在的那一格，描边并着主题色 */
+  current?: boolean
+}
+
+/** 把运限格排成网格，游标停在最后一行底部 */
+function drawChips(p: Painter, chips: Chip[], columns: number) {
+  const { palette } = p
+  const gap = 8
+  const cell = (CONTENT - gap * (columns - 1)) / columns
+  const maxLines = Math.max(...chips.map((c) => c.lines.length))
+  const height = 28 + maxLines * 15
+
+  chips.forEach((chip, i) => {
+    const x = PADDING + (i % columns) * (cell + gap)
+    const y = p.y + Math.floor(i / columns) * (height + gap)
+    p.rect(x, y, cell, height, palette.muted)
+    if (chip.current) {
+      p.rect(x, y, cell, 1, palette.primary)
+      p.rect(x, y + height - 1, cell, 1, palette.primary)
+      p.rect(x, y, 1, height, palette.primary)
+      p.rect(x + cell - 1, y, 1, height, palette.primary)
+    }
+    const cx = x + cell / 2
+    p.font(16, SERIF)
+    p.text(
+      chip.title,
+      cx,
+      y + 18,
+      chip.current ? palette.primary : palette.foreground,
+      "center"
+    )
+    p.font(11, SANS)
+    chip.lines.forEach((line, row) => {
+      p.text(line, cx, y + 34 + row * 15, palette.mutedForeground, "center")
+    })
+  })
+
+  const rows = Math.ceil(chips.length / columns)
+  p.y += rows * (height + gap) - gap
+}
+
+/** 一段运限的小标题：左边标题，右边补充 */
+function drawFortuneTitle(p: Painter, title: string, detail: string) {
+  const { palette } = p
+  p.font(13, SANS, 600)
+  p.text(title, PADDING, p.y + 8, palette.foreground)
+  p.font(11, SANS)
+  p.text(detail, WIDTH - PADDING, p.y + 8, palette.mutedForeground, "right")
+  p.y += 26
+}
+
+/** 今年所在的那步大运，尚未起运时取头一步 */
+function currentDecade(chart: BaziChart): DecadeFortuneStep | undefined {
+  const now = new Date().getFullYear()
+  return (
+    chart.decades.find((d) => now >= d.startYear && now <= d.endYear) ??
+    chart.decades[0]
+  )
+}
+
+/** 今年所在的那步大运与它的流年，再接今年的流月 */
+function drawBaziFortune(p: Painter, chart: BaziChart) {
+  const now = new Date().getFullYear()
+  const decade = currentDecade(chart)
+  if (!decade) return
+
+  drawFortuneTitle(
+    p,
+    `大运 ${decade.sixtyCycle}`,
+    `${shortTenStar(decade.stemTenStar)}/${shortTenStar(decade.branchTenStar)}  ${decade.startAge}-${decade.endAge} 岁  ${decade.startYear}-${decade.endYear}  ${chart.qiYun.forward ? "顺排" : "逆排"}  起运虚岁 ${chart.qiYun.startAge}`
+  )
+  drawChips(
+    p,
+    decade.years.map((y) => ({
+      title: y.sixtyCycle,
+      lines: [
+        `${shortTenStar(y.stemTenStar)}/${shortTenStar(y.branchTenStar)}`,
+        `${y.age} 岁  ${y.year}`,
+        `小运 ${y.minorFortune}`,
+      ],
+      current: y.year === now,
+    })),
+    5
+  )
+  p.y += 24
+
+  drawFortuneTitle(p, `流月 ${now}`, "以节为界")
+  drawChips(
+    p,
+    baziMonthsOfYear(chart, now).map((m) => ({
+      title: m.sixtyCycle,
+      lines: [
+        `${shortTenStar(m.stemTenStar)}/${shortTenStar(m.branchTenStar)}`,
+        m.termName,
+        m.termTime.slice(5, 10),
+      ],
+    })),
+    6
+  )
+}
+
+/** 十二宫格的尺寸：四列等宽，行高按内容伸缩，中央四格合并 */
 const GRID_CELL = CONTENT / 4
-const GRID_ROW = 150
+/** 一行宫格的最小高度 */
+const MIN_GRID_ROW = 150
+/** 中央四格放得下命主信息所需的高度 */
+const GRID_CENTER = 210
+/** 杂曜最多折几行 */
+const ADJECTIVE_LINES = 6
+/** 一宫上下留白与底部宫名、大限两行占掉的高度 */
+const PALACE_CHROME = 16 + 28
 
 /** 十二宫在网格里的列与行：巳午未申一行、寅丑子亥一行 */
 const PALACE_CELLS: ReadonlyArray<readonly [string, number, number]> = [
@@ -746,7 +888,11 @@ const PALACE_CELLS: ReadonlyArray<readonly [string, number, number]> = [
   ["亥", 3, 3],
 ]
 
-/** 一行星曜，每颗后面跟小字的庙陷与四化，超宽换行，返回画完后的 y */
+/**
+ * 一行星曜，每颗后面跟小字的庙陷与四化，超宽换行，返回画完后的 y
+ *
+ * measure 为真时只走版面不落笔，用来先量一宫要多高
+ */
 function drawStarRow(
   p: Painter,
   stars: ZiweiStar[],
@@ -754,10 +900,14 @@ function drawStarRow(
   y: number,
   maxWidth: number,
   size: number,
-  family: string
+  family: string,
+  measure = false
 ): number {
   if (stars.length === 0) return y
   const { palette } = p
+  const put = (content: string, cx: number, cy: number, color: string) => {
+    if (!measure) p.text(content, cx, cy, color)
+  }
   const lineHeight = size + 6
   let cx = x
   let cy = y
@@ -771,21 +921,16 @@ function drawStarRow(
       cy += lineHeight
     }
     p.font(size, family)
-    p.text(star.name, cx, cy + lineHeight / 2, palette.foreground)
+    put(star.name, cx, cy + lineHeight / 2, palette.foreground)
     cx += nameWidth + 1
     if (star.brightness) {
       p.font(9, SANS)
-      p.text(
-        star.brightness,
-        cx,
-        cy + lineHeight / 2 - 3,
-        palette.mutedForeground
-      )
+      put(star.brightness, cx, cy + lineHeight / 2 - 3, palette.mutedForeground)
       cx += p.width(star.brightness)
     }
     if (star.mutation) {
       p.font(9, SANS, 600)
-      p.text(
+      put(
         star.mutation,
         cx,
         cy + lineHeight / 2 + 4,
@@ -798,12 +943,35 @@ function drawStarRow(
   return cy + lineHeight + 2
 }
 
+/** 一宫的杂曜折行后的文字 */
+function adjectiveLines(p: Painter, palace: ZiweiPalace): string[] {
+  const adjectives = palace.adjectiveStars.map((s) => s.name).join(" ")
+  if (!adjectives) return []
+  p.font(9, SANS)
+  return p.wrap(adjectives, GRID_CELL - 16, ADJECTIVE_LINES)
+}
+
+/** 一宫星曜部分所需的高度，据此定这一行宫格多高 */
+function palaceHeight(p: Painter, palace: ZiweiPalace): number {
+  const width = GRID_CELL - 16
+  let cy = drawStarRow(p, palace.majorStars, 0, 0, width, 17, SERIF, true)
+  if (palace.majorStars.length === 0) cy += 22
+  cy = drawStarRow(p, palace.minorStars, 0, cy, width, 12, SANS, true)
+  return PALACE_CHROME + cy + adjectiveLines(p, palace).length * 13
+}
+
 /** 一宫：正曜大字、辅佐煞中字、杂曜小字折行，底部宫名干支与大限 */
-function drawPalaceCell(p: Painter, palace: ZiweiPalace, x: number, y: number) {
+function drawPalaceCell(
+  p: Painter,
+  palace: ZiweiPalace,
+  x: number,
+  y: number,
+  height: number
+) {
   const { palette } = p
   const inner = x + 8
   const width = GRID_CELL - 16
-  const bottom = y + GRID_ROW - 8
+  const bottom = y + height - 8
   let cy = y + 8
 
   cy = drawStarRow(p, palace.majorStars, inner, cy, width, 17, SERIF)
@@ -814,18 +982,10 @@ function drawPalaceCell(p: Painter, palace: ZiweiPalace, x: number, y: number) {
   }
   cy = drawStarRow(p, palace.minorStars, inner, cy, width, 12, SANS)
 
-  // 杂曜按到大限行之间的剩余空间 clamp 行数，正曜辅佐煞占得多时画不下就少画，不压到底部固定内容
-  const adjectives = palace.adjectiveStars.map((s) => s.name).join(" ")
-  const maxLines = Math.min(
-    3,
-    Math.max(0, Math.floor((bottom - 22 - 6 - cy) / 13))
-  )
-  if (adjectives && maxLines > 0) {
-    p.font(9, SANS)
-    for (const line of p.wrap(adjectives, width, maxLines)) {
-      p.text(line, inner, cy + 6, palette.mutedForeground)
-      cy += 13
-    }
+  p.font(9, SANS)
+  for (const line of adjectiveLines(p, palace)) {
+    p.text(line, inner, cy + 6, palette.mutedForeground)
+    cy += 13
   }
 
   p.font(9, SANS)
@@ -852,11 +1012,17 @@ function drawPalaceCell(p: Painter, palace: ZiweiPalace, x: number, y: number) {
   )
 }
 
-/** 中央四格：阴阳顺逆、命身宫、五行局、命主身主、生年四化 */
-function drawGridCenter(p: Painter, chart: ZiweiChart, x: number, y: number) {
+/** 中央四格：时辰阴阳顺逆、命身宫、五行局、命主身主、生年四化 */
+function drawGridCenter(
+  p: Painter,
+  chart: ZiweiChart,
+  x: number,
+  y: number,
+  height: number
+) {
   const { palette } = p
   const centerX = x + GRID_CELL
-  let cy = y + GRID_ROW - 70
+  let cy = y + height / 2 - 60
   const line = (
     content: string,
     size: number,
@@ -868,7 +1034,7 @@ function drawGridCenter(p: Painter, chart: ZiweiChart, x: number, y: number) {
     cy += size + 14
   }
   line(
-    `${chart.yang ? "阳" : "阴"}${chart.gender === "male" ? "男" : "女"}  大限${chart.forward ? "顺" : "逆"}行`,
+    `${chart.lunar.hourBranch}时  ${chart.yang ? "阳" : "阴"}${chart.gender === "male" ? "男" : "女"}  大限${chart.forward ? "顺" : "逆"}行`,
     13,
     SANS,
     palette.mutedForeground
@@ -907,30 +1073,124 @@ function drawGridCenter(p: Painter, chart: ZiweiChart, x: number, y: number) {
   }
 }
 
-/** 十二宫格：外框、格线、十二宫与中央信息 */
+/** 十二宫格：行高先按各宫内容量一遍，再画外框、格线、十二宫与中央信息 */
 function drawPalaces(p: Painter, chart: ZiweiChart) {
   const { palette } = p
   const top = p.y
+  const palaceOf = (branch: string) =>
+    chart.palaces.find((item) => item.branch === branch)
+
+  const heights = [0, 1, 2, 3].map((row) =>
+    Math.max(
+      MIN_GRID_ROW,
+      ...PALACE_CELLS.filter(([, , r]) => r === row).map(([branch]) => {
+        const palace = palaceOf(branch)
+        return palace ? palaceHeight(p, palace) : 0
+      })
+    )
+  )
+  // 中间两行还要放得下中央四格
+  const center = heights[1]! + heights[2]!
+  if (center < GRID_CENTER) {
+    const more = (GRID_CENTER - center) / 2
+    heights[1] += more
+    heights[2] += more
+  }
+  const rowTop = (row: number) =>
+    top + heights.slice(0, row).reduce((sum, h) => sum + h, 0)
+  const total = rowTop(4) - top
+
   for (let i = 0; i <= 4; i++) {
-    p.rect(PADDING, top + i * GRID_ROW, CONTENT, 1, palette.border)
-    p.rect(PADDING + i * GRID_CELL, top, 1, GRID_ROW * 4 + 1, palette.border)
+    p.rect(PADDING, rowTop(i), CONTENT, 1, palette.border)
+    p.rect(PADDING + i * GRID_CELL, top, 1, total + 1, palette.border)
   }
   // 中央四格之间的格线抹掉，合成一块
   p.rect(
     PADDING + GRID_CELL + 1,
-    top + GRID_ROW + 1,
+    rowTop(1) + 1,
     GRID_CELL * 2 - 1,
-    GRID_ROW * 2 - 1,
+    heights[1]! + heights[2]! - 1,
     palette.background
   )
 
   for (const [branch, col, row] of PALACE_CELLS) {
-    const palace = chart.palaces.find((item) => item.branch === branch)
-    if (palace)
-      drawPalaceCell(p, palace, PADDING + col * GRID_CELL, top + row * GRID_ROW)
+    const palace = palaceOf(branch)
+    if (palace) {
+      drawPalaceCell(
+        p,
+        palace,
+        PADDING + col * GRID_CELL,
+        rowTop(row),
+        heights[row]!
+      )
+    }
   }
-  drawGridCenter(p, chart, PADDING + GRID_CELL, top + GRID_ROW)
-  p.y = top + GRID_ROW * 4 + 1
+  drawGridCenter(
+    p,
+    chart,
+    PADDING + GRID_CELL,
+    rowTop(1),
+    heights[1]! + heights[2]!
+  )
+  p.y = top + total + 1
+}
+
+/** 今天所处的运限 */
+function currentLimit(chart: ZiweiChart): ZiweiLimit {
+  const today = new Date()
+  return ziweiLimitAt(chart, {
+    year: today.getFullYear(),
+    month: today.getMonth() + 1,
+    day: today.getDate(),
+  })
+}
+
+/** 今年所在的那步大限覆盖的流年，尚未起限时为空 */
+function ziweiLimitYears(chart: ZiweiChart): ZiweiYear[] {
+  const decade = currentLimit(chart).decade
+  if (!decade) return []
+  const years: ZiweiYear[] = []
+  for (let year = decade.startYear; year <= decade.endYear; year++) {
+    years.push(ziweiYearly(chart, year))
+  }
+  return years
+}
+
+/** 今年所在的那步大限与它的流年 */
+function drawZiweiLimit(p: Painter, chart: ZiweiChart) {
+  const limit = currentLimit(chart)
+  const decade = limit.decade
+  if (!decade) {
+    drawFortuneTitle(
+      p,
+      "大限",
+      `${chart.bureau.name}，${chart.bureau.number} 岁起限，今年虚岁 ${limit.age} 尚未起限`
+    )
+    return
+  }
+
+  const palace = chart.palaces.find(
+    (item) => item.decade.index === decade.index
+  )
+  drawFortuneTitle(
+    p,
+    `大限 ${palace?.sixtyCycle ?? ""}`,
+    `${palace?.name ?? ""}  ${decade.startAge}-${decade.endAge} 岁  ${decade.startYear}-${decade.endYear}  大限${chart.forward ? "顺" : "逆"}行`
+  )
+
+  drawChips(
+    p,
+    ziweiLimitYears(chart).map((flow) => ({
+      title: flow.sixtyCycle,
+      lines: [
+        `${flow.age} 岁  ${flow.year}`,
+        `命宫 ${flow.lifePalace}`,
+        `小限 ${flow.minorLimit}`,
+      ],
+      current: flow.year === limit.yearly.year,
+    })),
+    5
+  )
 }
 
 /** 表格：各列等宽，首行加粗，行间细线 */
@@ -1144,8 +1404,12 @@ function paint(
     drawPillars(p, subject.chart)
     p.section()
     drawElements(p, subject.chart)
+    p.section()
+    drawBaziFortune(p, subject.chart)
   } else {
     drawPalaces(p, subject.chart)
+    p.section()
+    drawZiweiLimit(p, subject.chart)
   }
   if (blocks.length > 0) {
     p.section()

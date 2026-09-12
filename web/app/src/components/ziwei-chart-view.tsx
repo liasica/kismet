@@ -191,9 +191,11 @@ function PalaceCell({ chart, palace, overlay }: PalaceCellProps) {
 function CenterCell({
   chart,
   overlay,
+  hideBirth,
 }: {
   chart: ZiweiChart
   overlay?: Overlay
+  hideBirth?: boolean
 }) {
   return (
     <div
@@ -202,7 +204,9 @@ function CenterCell({
     >
       <span className="font-heading text-xl">{chart.name || "未具名"}</span>
       <span className="text-xs text-muted-foreground">
-        {chart.lunar.text} {chart.lunar.hourBranch}时
+        {hideBirth
+          ? `${chart.lunar.hourBranch}时`
+          : `${chart.lunar.text} ${chart.lunar.hourBranch}时`}
       </span>
       <span className="text-xs text-muted-foreground">
         {chart.yang ? "阳" : "阴"}
@@ -248,9 +252,11 @@ function CenterCell({
 function PalaceGrid({
   chart,
   overlay,
+  hideBirth,
 }: {
   chart: ZiweiChart
   overlay?: Overlay
+  hideBirth?: boolean
 }) {
   return (
     <div className="overflow-x-auto" tabIndex={0}>
@@ -263,14 +269,20 @@ function PalaceGrid({
             overlay={overlay}
           />
         ))}
-        <CenterCell chart={chart} overlay={overlay} />
+        <CenterCell chart={chart} overlay={overlay} hideBirth={hideBirth} />
       </div>
     </div>
   )
 }
 
 /** 大限与流年：选一步大限或其中一个流年，把流曜叠到宫格上 */
-function LimitView({ chart }: { chart: ZiweiChart }) {
+function LimitView({
+  chart,
+  hideBirth,
+}: {
+  chart: ZiweiChart
+  hideBirth?: boolean
+}) {
   const current = React.useMemo(() => {
     const today = new Date()
     return ziweiLimitAt(chart, {
@@ -393,14 +405,23 @@ function LimitView({ chart }: { chart: ZiweiChart }) {
         命宫，宫内主题色为流曜与岁前将前诸星，星名后的「
         {overlay.tag}禄」「{overlay.tag}忌」为流四化
       </p>
-      <PalaceGrid chart={chart} overlay={overlay} />
+      <PalaceGrid chart={chart} overlay={overlay} hideBirth={hideBirth} />
     </div>
   )
 }
 
-export function ZiweiChartView({ chart }: { chart: ZiweiChart }) {
+interface ZiweiChartViewProps {
+  chart: ZiweiChart
+  /** 隐去出生时刻、出生地与农历日期，分享出去的报告用 */
+  hideBirth?: boolean
+}
+
+export function ZiweiChartView({ chart, hideBirth }: ZiweiChartViewProps) {
   const t = chart.time
-  const text = React.useMemo(() => ziweiToText(chart), [chart])
+  const text = React.useMemo(
+    () => ziweiToText(chart, { birth: !hideBirth }),
+    [chart, hideBirth]
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -411,36 +432,41 @@ export function ZiweiChartView({ chart }: { chart: ZiweiChart }) {
             {chart.gender === "male" ? "乾造" : "坤造"}
           </Badge>
           <span className="text-sm text-muted-foreground">
-            {chart.lunar.text} {chart.lunar.hourBranch}时 属{t.zodiac}
+            {hideBirth
+              ? `${chart.lunar.hourBranch}时`
+              : `${chart.lunar.text} ${chart.lunar.hourBranch}时 属${t.zodiac}`}
           </span>
         </div>
-        <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-          <span>阳历 {t.input}</span>
-          {t.daylightSavingMinutes !== 0 && (
-            <span>
-              标准时 {t.standard}（夏令时回拨 {-t.daylightSavingMinutes} 分钟）
-            </span>
-          )}
-          {chart.options.useTrueSolarTime && (
-            <span>
-              真太阳时 {t.effective}（经度差 {t.longitudeMinutes} 分，均时差{" "}
-              {t.equationOfTimeMinutes} 分）
-            </span>
-          )}
-          {chart.location?.name && (
-            <span>
-              出生地 {chart.location.name}，东经 {chart.location.longitude}
-            </span>
-          )}
-          {chart.lunar.leap && (
-            <span>
-              闰{chart.lunar.month}月
-              {chart.lunar.day > 15
-                ? `十六起按 ${chart.lunar.effectiveMonth} 月安星`
-                : "十五以前按本月安星"}
-            </span>
-          )}
-        </div>
+        {!hideBirth && (
+          <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+            <span>阳历 {t.input}</span>
+            {t.daylightSavingMinutes !== 0 && (
+              <span>
+                标准时 {t.standard}（夏令时回拨 {-t.daylightSavingMinutes}{" "}
+                分钟）
+              </span>
+            )}
+            {chart.options.useTrueSolarTime && (
+              <span>
+                真太阳时 {t.effective}（经度差 {t.longitudeMinutes} 分，均时差{" "}
+                {t.equationOfTimeMinutes} 分）
+              </span>
+            )}
+            {chart.location?.name && (
+              <span>
+                出生地 {chart.location.name}，东经 {chart.location.longitude}
+              </span>
+            )}
+            {chart.lunar.leap && (
+              <span>
+                闰{chart.lunar.month}月
+                {chart.lunar.day > 15
+                  ? `十六起按 ${chart.lunar.effectiveMonth} 月安星`
+                  : "十五以前按本月安星"}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <Tabs defaultValue="palaces">
@@ -451,11 +477,11 @@ export function ZiweiChartView({ chart }: { chart: ZiweiChart }) {
         </TabsList>
 
         <TabsContent value="palaces" className="pt-4">
-          <PalaceGrid chart={chart} />
+          <PalaceGrid chart={chart} hideBirth={hideBirth} />
         </TabsContent>
 
         <TabsContent value="limit" className="pt-4">
-          <LimitView chart={chart} />
+          <LimitView chart={chart} hideBirth={hideBirth} />
         </TabsContent>
 
         <TabsContent value="text" className="pt-4">

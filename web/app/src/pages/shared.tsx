@@ -111,6 +111,7 @@ export function SharedPage() {
           options={state.report.options}
           analysis={state.report.analysis}
           updatedAt={state.report.updatedAt}
+          hideBirth
         />
       )}
       {state.kind === "ready" && !system && (

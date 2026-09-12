@@ -167,7 +167,13 @@ function PillarTable({ chart }: { chart: BaziChart }) {
 }
 
 /** 大运、流年、流月三级联动 */
-function FortuneView({ chart }: { chart: BaziChart }) {
+function FortuneView({
+  chart,
+  hideBirth,
+}: {
+  chart: BaziChart
+  hideBirth?: boolean
+}) {
   const [decade, setDecade] = React.useState(0)
   const [yearIndex, setYearIndex] = React.useState(0)
 
@@ -186,11 +192,16 @@ function FortuneView({ chart }: { chart: BaziChart }) {
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap gap-x-4 text-xs text-muted-foreground">
           <span>{chart.qiYun.forward ? "顺排" : "逆排"}</span>
-          <span>{chart.qiYun.text}</span>
-          <span>起运 {chart.qiYun.startTime}</span>
-          <span>
-            折算依据 {chart.qiYun.term.name} {chart.qiYun.term.time}
-          </span>
+          <span>起运虚岁 {chart.qiYun.startAge}</span>
+          {!hideBirth && (
+            <>
+              <span>{chart.qiYun.text}</span>
+              <span>起运 {chart.qiYun.startTime}</span>
+              <span>
+                折算依据 {chart.qiYun.term.name} {chart.qiYun.term.time}
+              </span>
+            </>
+          )}
         </div>
         <ScrollRow>
           {chart.decades.map((d, i) => (
@@ -361,11 +372,23 @@ function ElementView({ chart }: { chart: BaziChart }) {
   )
 }
 
-export function ChartView({ chart }: { chart: BaziChart }) {
+interface ChartViewProps {
+  chart: BaziChart
+  /** 隐去出生时刻、出生地与农历日期，分享出去的报告用 */
+  hideBirth?: boolean
+}
+
+export function ChartView({ chart, hideBirth }: ChartViewProps) {
   const t = chart.time
   const text = React.useMemo(
-    () => baziToText(chart, { years: true, months: true, elementDetail: true }),
-    [chart]
+    () =>
+      baziToText(chart, {
+        birth: !hideBirth,
+        years: true,
+        months: true,
+        elementDetail: true,
+      }),
+    [chart, hideBirth]
   )
 
   return (
@@ -376,33 +399,38 @@ export function ChartView({ chart }: { chart: BaziChart }) {
           <Badge variant="secondary">
             {chart.gender === "male" ? "乾造" : "坤造"}
           </Badge>
-          <span className="text-sm text-muted-foreground">
-            {t.lunar} 属{t.zodiac}
-          </span>
+          {!hideBirth && (
+            <span className="text-sm text-muted-foreground">
+              {t.lunar} 属{t.zodiac}
+            </span>
+          )}
         </div>
-        <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-          <span>阳历 {t.input}</span>
-          {t.daylightSavingMinutes !== 0 && (
+        {!hideBirth && (
+          <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+            <span>阳历 {t.input}</span>
+            {t.daylightSavingMinutes !== 0 && (
+              <span>
+                标准时 {t.standard}（夏令时回拨 {-t.daylightSavingMinutes}{" "}
+                分钟）
+              </span>
+            )}
+            {chart.options.useTrueSolarTime && (
+              <span>
+                真太阳时 {t.effective}（经度差 {t.longitudeMinutes} 分，均时差{" "}
+                {t.equationOfTimeMinutes} 分）
+              </span>
+            )}
+            {chart.location?.name && (
+              <span>
+                出生地 {chart.location.name}，东经 {chart.location.longitude}
+              </span>
+            )}
             <span>
-              标准时 {t.standard}（夏令时回拨 {-t.daylightSavingMinutes} 分钟）
+              {t.prevJie.name} {t.prevJie.time} 起，下一节 {t.nextJie.name}{" "}
+              {t.nextJie.time}
             </span>
-          )}
-          {chart.options.useTrueSolarTime && (
-            <span>
-              真太阳时 {t.effective}（经度差 {t.longitudeMinutes} 分，均时差{" "}
-              {t.equationOfTimeMinutes} 分）
-            </span>
-          )}
-          {chart.location?.name && (
-            <span>
-              出生地 {chart.location.name}，东经 {chart.location.longitude}
-            </span>
-          )}
-          <span>
-            {t.prevJie.name} {t.prevJie.time} 起，下一节 {t.nextJie.name}{" "}
-            {t.nextJie.time}
-          </span>
-        </div>
+          </div>
+        )}
       </div>
 
       <Tabs defaultValue="basic">
@@ -438,7 +466,7 @@ export function ChartView({ chart }: { chart: BaziChart }) {
         </TabsContent>
 
         <TabsContent value="fortune" className="pt-4">
-          <FortuneView chart={chart} />
+          <FortuneView chart={chart} hideBirth={hideBirth} />
         </TabsContent>
 
         <TabsContent value="element" className="pt-4">

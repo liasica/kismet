@@ -19,6 +19,8 @@ interface ReportViewProps {
   analysis: string
   /** 报告最近一次更新的时间，ISO 字符串 */
   updatedAt: string
+  /** 隐去出生时刻、出生地与农历日期，分享页用 */
+  hideBirth?: boolean
 }
 
 type Rendered =
@@ -29,18 +31,27 @@ type Rendered =
 function renderChart(
   system: System,
   input: PaipanInput,
-  options: ReportOptions
+  options: ReportOptions,
+  hideBirth?: boolean
 ): Rendered {
   try {
     if (system === "ziwei") {
       return {
         node: (
-          <ZiweiChartView chart={ziweiPaipan(input, options as ZiweiOptions)} />
+          <ZiweiChartView
+            chart={ziweiPaipan(input, options as ZiweiOptions)}
+            hideBirth={hideBirth}
+          />
         ),
       }
     }
     return {
-      node: <ChartView chart={baziPaipan(input, options as BaziOptions)} />,
+      node: (
+        <ChartView
+          chart={baziPaipan(input, options as BaziOptions)}
+          hideBirth={hideBirth}
+        />
+      ),
     }
   } catch (e) {
     return { error: errorMessage(e) }
@@ -54,10 +65,11 @@ export function ReportView({
   options,
   analysis,
   updatedAt,
+  hideBirth,
 }: ReportViewProps) {
   const rendered = React.useMemo(
-    () => renderChart(system, input, options),
-    [system, input, options]
+    () => renderChart(system, input, options, hideBirth),
+    [system, input, options, hideBirth]
   )
 
   if (rendered.error !== undefined) {
