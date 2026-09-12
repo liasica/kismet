@@ -92,17 +92,13 @@ export function BirthForm({
 
         <Field>
           <FieldLabel htmlFor="birth-time">出生时间</FieldLabel>
-          <div className="flex flex-col gap-2">
-            <DateTimePicker
-              id="birth-time"
-              date={value.date}
-              time={value.time}
-              onChange={(v) => patch(v)}
-            />
-            <FieldDescription className="m-0">
-              公历，北京时间，精确到分
-            </FieldDescription>
-          </div>
+          <DateTimePicker
+            id="birth-time"
+            date={value.date}
+            time={value.time}
+            onChange={(v) => patch(v)}
+            hint="公历，北京时间，精确到分"
+          />
         </Field>
 
         <Field>
